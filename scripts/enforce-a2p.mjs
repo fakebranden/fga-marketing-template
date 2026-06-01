@@ -1,33 +1,28 @@
 #!/usr/bin/env node
 /**
- * enforce-a2p.mjs — Build-blocking A2P SMS compliance check.
+ * enforce-a2p.mjs — Build-blocking A2P SMS compliance check (v2).
  *
- * Rule (per reference_sms_a2p_compliance memory):
- *   Every <input type="tel"> on the site must live in a file that also
- *   imports + uses <SmsConsent />. Carriers reject A2P campaigns whose
- *   opt-in forms don't render the visible consent disclosure + checkbox,
- *   so this script blocks the build the moment we drift.
+ * Rule (per reference_sms_a2p_compliance + template CLAUDE.md hard rules):
+ *   Every PHONE-COLLECTING input on the site must live in a file that also
+ *   imports + uses <SmsConsent />, and that file must NOT render <ChatWidget />.
+ *   Carriers reject A2P campaigns whose opt-in forms don't surface the visible
+ *   consent disclosure + checkbox, so this blocks the build the moment we drift.
  *
- * Scope:
- *   Walks src/**\/*.{ts,tsx} (excluding node_modules, .next).
- *   For each file containing `<input type="tel"` (or `type='tel'`), confirm:
- *     1. The file imports SmsConsent (default or named import)
- *     2. The file references `<SmsConsent` in its JSX
+ * v2 hardening over v1 (which only caught a single-line `<input type="tel">`):
+ *   - Tag-by-tag scan of every <input> AND shadcn <Input> element, multiline-safe.
+ *   - Phone collection detected via ANY of: type=tel, inputMode=tel,
+ *     autoComplete=tel*, or a name/id whose value contains phone|tel|mobile|cell.
+ *     Closes the "form collects phone without type='tel'" evasion (known-issue #5).
+ *   - ChatWidget A2P gate: <ChatWidget /> MUST NOT render on a page that also
+ *     collects a phone number (template CLAUDE.md hard rule #4).
+ *   - Conservative: a positive phone signal is required to flag, so a dynamic
+ *     `type={expr}` input with no phone-ish attribute is NOT a false positive.
  *
- * On violation:
- *   - Prints `${file}:${line} — tel input without SmsConsent`
- *   - Exits with code 1 so `npm run build` fails fast.
+ * On violation: prints `${file}:${line} — <reason>` and exits 1 (fails build).
+ * On clean tree: prints an audit summary and exits 0.
  *
- * On clean tree:
- *   - Prints `[enforce-a2p] OK — N tel input(s) audited, all compliant`
- *   - Exits 0.
- *
- * Usage:
- *   node scripts/enforce-a2p.mjs
- *
- * Wired into `npm run build` via package.json scripts. CI also runs it
- * explicitly via the generate-marketing.yml workflow so the build can
- * fail before the Claude Agent SDK call burns tokens on broken output.
+ * Wired into `npm run build` via package.json + run explicitly in
+ * generate-marketing.yml so the build fails before the Agent SDK burns tokens.
  */
 import { readdirSync, readFileSync, statSync } from "node:fs";
 import { join, relative, resolve } from "node:path";
@@ -37,9 +32,35 @@ const __dirname = fileURLToPath(new URL(".", import.meta.url));
 const ROOT = resolve(__dirname, "..");
 const SRC = join(ROOT, "src");
 
-const TEL_INPUT_RE = /<input\b[^>]*\btype\s*=\s*['"]tel['"]/;
+// Every <input ...> / <Input ...> tag (self-closing or not), multiline-safe.
+// [^>] includes newlines, so attributes spread across lines are captured.
+const INPUT_TAG_RE = /<[Ii]nput\b[^>]*?>/g;
+
+// Phone-collection signals that take an exact `tel` value.
+const TEL_VALUE_SIGNALS = [
+  /\btype\s*=\s*['"]tel['"]/i,
+  /\binputmode\s*=\s*['"]tel['"]/i,
+  /\bautocomplete\s*=\s*['"]tel[^'"]*['"]/i,
+];
+// name=/id= attribute values are tokenized (camelCase + separators) and matched
+// against this set, so `phoneNumber`/`mobilePhone`/`user_phone` are caught while
+// `automobile`/`hotel`/`cancellation` are NOT false-positived.
+const NAME_ID_RE = /\b(?:name|id)\s*=\s*['"]([^'"]+)['"]/gi;
+const PHONE_TOKENS = new Set([
+  "phone", "telephone", "tel", "mobile", "cell",
+  "cellphone", "mobilephone", "phonenumber", "mobilenumber",
+]);
+function tokenize(value) {
+  return value
+    .replace(/([a-z])([A-Z])/g, "$1 $2") // camelCase hump → boundary
+    .split(/[^a-zA-Z]+/) // non-letters → boundary (snake_case, kebab-case)
+    .map((t) => t.toLowerCase())
+    .filter(Boolean);
+}
+
 const SMS_CONSENT_IMPORT_RE = /\bimport\b[^;]*\bSmsConsent\b[^;]*;/;
 const SMS_CONSENT_USAGE_RE = /<SmsConsent\b/;
+const CHATWIDGET_USAGE_RE = /<ChatWidget\b/;
 
 function walk(dir, acc = []) {
   for (const name of readdirSync(dir)) {
@@ -55,59 +76,86 @@ function walk(dir, acc = []) {
   return acc;
 }
 
-function findLineNumber(src, regex) {
-  const lines = src.split("\n");
-  for (let i = 0; i < lines.length; i++) {
-    if (regex.test(lines[i])) return i + 1;
+function lineOfIndex(src, index) {
+  return src.slice(0, index).split("\n").length;
+}
+
+function isPhoneInput(tag) {
+  if (TEL_VALUE_SIGNALS.some((re) => re.test(tag))) return true;
+  for (const m of tag.matchAll(NAME_ID_RE)) {
+    if (tokenize(m[1]).some((t) => PHONE_TOKENS.has(t))) return true;
   }
-  return 1;
+  return false;
 }
 
 function main() {
   let files;
   try {
     files = walk(SRC);
-  } catch (err) {
-    // src/ missing — nothing to audit (e.g. fresh template before scaffold).
+  } catch {
     console.log("[enforce-a2p] no src/ directory — skipped");
     process.exit(0);
   }
 
   const violations = [];
-  let telInputCount = 0;
+  let phoneInputCount = 0;
+  let filesWithPhone = 0;
 
   for (const file of files) {
     const src = readFileSync(file, "utf8");
-    if (!TEL_INPUT_RE.test(src)) continue;
-    telInputCount += 1;
+    const rel = relative(ROOT, file);
+
+    // Find phone-collecting input tags in this file.
+    const phoneTags = [];
+    for (const m of src.matchAll(INPUT_TAG_RE)) {
+      if (isPhoneInput(m[0])) phoneTags.push({ index: m.index, line: lineOfIndex(src, m.index) });
+    }
+    if (phoneTags.length === 0) continue;
+
+    filesWithPhone += 1;
+    phoneInputCount += phoneTags.length;
+
     const hasImport = SMS_CONSENT_IMPORT_RE.test(src);
     const hasUsage = SMS_CONSENT_USAGE_RE.test(src);
-    if (hasImport && hasUsage) continue;
-    const line = findLineNumber(src, TEL_INPUT_RE);
-    const rel = relative(ROOT, file);
-    const reason = !hasImport
-      ? "missing `import { SmsConsent } from ...`"
-      : "missing `<SmsConsent />` in JSX";
-    violations.push({ file: rel, line, reason });
+    const firstLine = phoneTags[0].line;
+
+    if (!hasImport || !hasUsage) {
+      violations.push({
+        file: rel,
+        line: firstLine,
+        reason: !hasImport
+          ? "phone-collecting input without `import { SmsConsent } from '@/components/sms-consent'`"
+          : "phone-collecting input — SmsConsent imported but `<SmsConsent />` not rendered",
+      });
+    }
+
+    // ChatWidget A2P gate (template CLAUDE.md hard rule #4).
+    if (CHATWIDGET_USAGE_RE.test(src)) {
+      const cwIdx = src.search(CHATWIDGET_USAGE_RE);
+      violations.push({
+        file: rel,
+        line: lineOfIndex(src, cwIdx),
+        reason: "<ChatWidget /> renders on a page that collects a phone number — A2P prohibits this (move ChatWidget to /about, /terms, or /privacy)",
+      });
+    }
   }
 
   if (violations.length > 0) {
     console.error("[enforce-a2p] FAIL — A2P SMS compliance violation(s):");
-    for (const v of violations) {
-      console.error(`  ${v.file}:${v.line} — tel input without SmsConsent (${v.reason})`);
-    }
+    for (const v of violations) console.error(`  ${v.file}:${v.line} — ${v.reason}`);
     console.error("");
     console.error(
-      "Fix: import { SmsConsent } from '@/components/sms-consent' and render <SmsConsent /> inside the form that collects the phone number.",
+      "Fix: every phone-collecting form must import { SmsConsent } and render <SmsConsent /> in the same file, " +
+        "and must NOT render <ChatWidget /> on that page.",
     );
     console.error(
-      "See: reference_sms_a2p_compliance — A2P submission requires every phone-collecting form to surface the visible consent block.",
+      "See: reference_sms_a2p_compliance — A2P requires the visible consent block on every phone-collecting form.",
     );
     process.exit(1);
   }
 
   console.log(
-    `[enforce-a2p] OK — ${telInputCount} tel input(s) audited, all compliant`,
+    `[enforce-a2p] OK — ${phoneInputCount} phone input(s) across ${filesWithPhone} file(s) audited, all compliant`,
   );
   process.exit(0);
 }
