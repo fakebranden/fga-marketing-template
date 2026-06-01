@@ -20,7 +20,7 @@
 import { readFileSync, writeFileSync, existsSync } from "node:fs";
 import { execSync } from "node:child_process";
 
-const MAX_ROUNDS = 4;
+const MAX_ROUNDS = 8;
 const MODEL = "claude-sonnet-4-6";
 
 function build() {
@@ -69,11 +69,12 @@ async function fixFile(file, msg) {
     "You fix ONE Next.js 16 (App Router) / React 19 / strict-TypeScript file that failed the build. " +
     "Return the COMPLETE corrected file inside one ```tsx fence, nothing else. Change as little as possible. " +
     "Rules: (1) A page that `export const metadata` is a SERVER component — it CANNOT contain event handlers " +
-    "(onClick/onMouseEnter/etc). Replace handler-driven interactivity with plain HTML/CSS (e.g. an <a href=\"#top\"> " +
-    "instead of onClick scroll), or move the interactive part into a small child component file marked \"use client\" " +
-    "and import it — but do NOT add \"use client\" to a file that exports metadata. (2) Only valid React.CSSProperties " +
-    "in style={{}} (no focusRingColor etc.). (3) Do not add props to prop-less components, do not invent imports. " +
-    "(4) Keep all existing copy/sections/SmsConsent intact.";
+    "(onClick/onMouseEnter/onMouseLeave/onChange/etc). REMOVE every event handler and replace with plain HTML/CSS: " +
+    "an <a href=\"#id\"> instead of onClick scroll, native <form action=...> submit, CSS :hover via className instead of " +
+    "onMouseEnter style swaps. (2) NEVER create or import a component/file that does not already exist in this repo " +
+    "(do NOT invent @/components/booking-form or similar) — keep everything inline in THIS file. (3) Do NOT add " +
+    "\"use client\" to a file that exports metadata. (4) Only valid React.CSSProperties in style={{}} (no focusRingColor). " +
+    "(5) Do not add props to prop-less components. (6) Keep all existing copy/sections/SmsConsent intact.";
   const user = `File: ${file}\nBuild error: ${msg}\n\nCurrent content:\n\`\`\`tsx\n${src}\n\`\`\``;
   const r = await client.messages.create({
     model: MODEL, max_tokens: 16000, system: sys, messages: [{ role: "user", content: user }],

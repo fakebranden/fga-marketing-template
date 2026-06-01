@@ -193,6 +193,7 @@ const LIB_CONTRACT = `### Template APIs — use these EXACT imports + signatures
     faqGraph(entries: {q:string; a:string}[])
     canonical(path: string): string
     export const metadata: Metadata = pageMeta("/", \`\${brand.company} — \${brand.tagline}\`, brand.description);
+- PAGES ARE SERVER COMPONENTS (they export metadata). DO NOT use ANY React event handlers — no onClick, onMouseEnter, onMouseLeave, onChange, onSubmit, etc. (they cause a build-blocking "Event handlers cannot be passed to Client Component props" prerender error). For interactivity use ONLY: plain <a href="#id"> anchors, native <form action=...> submission, CSS :hover/:focus (add classes; do not inline JS), and <details>/<summary> for accordions. Hover color changes go in className, never style={{}} + onMouseEnter.
 - Components (all NAMED exports). Prop-less unless noted — render exactly as shown:
     import { SiteHeader } from "@/components/site-header"      <SiteHeader />
     import { SiteFooter } from "@/components/site-footer"      <SiteFooter />
@@ -227,14 +228,17 @@ async function callClaude(systemPrompt, userPrompt) {
   });
   const Anthropic = sdkMod.default || sdkMod.Anthropic;
   const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
-  const msg = await client.messages.create({
+  // Stream the response: at high max_tokens the SDK requires streaming (a
+  // non-streaming request that could exceed 10 min is rejected). Streaming also
+  // removes that ceiling. max_tokens 28000 gives ample headroom for verbose
+  // pages; the truncation guard below still catches any overrun.
+  const stream = client.messages.stream({
     model: "claude-sonnet-4-6",
-    // Rich marketing pages run 25-35k chars (~8-10k tokens); 8192 truncated them
-    // mid-JSX → parse errors. 16000 gives ample headroom.
-    max_tokens: 16000,
+    max_tokens: 28000,
     system: systemPrompt,
     messages: [{ role: "user", content: userPrompt }],
   });
+  const msg = await stream.finalMessage();
   if (msg.stop_reason === "max_tokens") {
     throw new Error(
       "Claude response hit max_tokens (truncated mid-output) — raise max_tokens or split the page. Refusing to write truncated TSX.",
