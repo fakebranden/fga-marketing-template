@@ -1,0 +1,7 @@
+# llms-full.txt — placeholder
+
+> This file is regenerated per-client at build time by the Generate-Site
+> pipeline (Phase 5e, see scripts/generate-pages.mjs + AGENTS.md). The
+> default template ships this stub. Final per-client llms-full.txt is
+> ~5–10k tokens with comprehensive niche-specific content per the
+> reference_seo_aeo_site_baseline spec.

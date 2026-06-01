@@ -1,0 +1,13 @@
+# llms.txt — placeholder
+
+> This file is regenerated per-client at build time by the Generate-Site
+> pipeline (Phase 5e, see scripts/generate-pages.mjs + AGENTS.md). The
+> default template ships this stub so the route resolves with HTTP 200
+> against any unparameterized template deploy. The final per-client file
+> follows the pattern documented in reference_seo_aeo_site_baseline:
+>
+> - One-paragraph brand description
+> - Quick facts (service area, niche, pricing band, lead time)
+> - Contact (email, phone, social handles from brand-config.json)
+> - Pages list with one-line purpose each
+> - Common questions list (mirrors faqs from brand-config.json)

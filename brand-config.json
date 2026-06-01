@@ -1,0 +1,94 @@
+{
+  "client_key": "example-client",
+  "slug": "example-client",
+  "niche": "mobile-food-truck",
+  "company": "Example Client",
+  "legal_entity": "Example Client LLC",
+  "dba": "Example Client",
+  "tagline": "Tagline goes here.",
+  "subtitle": "Subtitle goes here.",
+  "description": "Short one-paragraph description of the business — used in metadata, og:description, and AEO sources. Replaced at site-generation time by the Generate-Site pipeline.",
+  "canonical_url": "https://example.com",
+  "logo_path": "/brand/logo.png",
+  "logo_white_path": "/brand/logo-white.png",
+  "favicon_path": "/brand/favicon.ico",
+  "contact": {
+    "phone": "(555) 555-5555",
+    "email": "hello@example.com",
+    "address_locality": "City",
+    "address_region": "ST",
+    "address_country": "US"
+  },
+  "socials": {
+    "instagram": "",
+    "facebook": "",
+    "tiktok": "",
+    "youtube": "",
+    "linkedin": ""
+  },
+  "colors": {
+    "primary": "#0F172A",
+    "primary_dark": "#020617",
+    "primary_soft": "#E2E8F0",
+    "accent": "#F59E0B",
+    "accent_dark": "#B45309",
+    "surface": "#FFFFFF",
+    "surface_soft": "#F8FAFC",
+    "ink": "#0F172A",
+    "ink_soft": "#334155",
+    "mute": "#64748B",
+    "line": "#E2E8F0",
+    "line_soft": "#F1F5F9"
+  },
+  "fonts": {
+    "display": "Fraunces",
+    "body": "Inter",
+    "display_fallback": "Georgia, 'Times New Roman', serif",
+    "body_fallback": "system-ui, -apple-system, 'Helvetica Neue', Arial, sans-serif"
+  },
+  "service_areas": [
+    "Service Area One",
+    "Service Area Two",
+    "Service Area Three"
+  ],
+  "faqs": [
+    {
+      "q": "Where do you operate?",
+      "a": "Replace this with the canonical answer for the client's service area."
+    },
+    {
+      "q": "How do I book?",
+      "a": "Replace this with the canonical booking-flow answer."
+    },
+    {
+      "q": "What does it cost?",
+      "a": "Replace this with the canonical pricing answer (or 'request a quote' if variable)."
+    }
+  ],
+  "a2p": {
+    "enabled": false,
+    "program_description": "Recurring informational and promotional SMS from the legal_entity. Update this string to match the campaign filed with the carrier.",
+    "sample_messages": [
+      "Hi! This is Example Client LLC. We received your recent inquiry and a team member will follow up shortly. Reply STOP to unsubscribe.",
+      "Hello from Example Client LLC. We're excited to share a new promotion available for a limited time. Reply STOP to unsubscribe. Message and data rates may apply."
+    ],
+    "frequency": "Up to several messages per month.",
+    "help_email_override": "",
+    "help_phone_override": ""
+  },
+  "ghl": {
+    "location_id": "",
+    "custom_field_event_service_area_id": "",
+    "service_area_options": [
+      "Service Area One",
+      "Service Area Two",
+      "Service Area Three",
+      "Outside service area (travel quote)"
+    ],
+    "chat_widget_id": "",
+    "tags": {
+      "default": ["Website Booking", "Website Lead"],
+      "sms_opt_in": "SMS Opt-In"
+    }
+  }
+}

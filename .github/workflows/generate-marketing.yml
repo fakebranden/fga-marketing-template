@@ -1,0 +1,110 @@
+name: Generate Marketing Site
+
+# Triggered by the n8n orchestrator WF-MARKETING-SITE-GEN via
+# GitHub API workflow_dispatch — see reference_generate_site_button_implementation.
+
+on:
+  workflow_dispatch:
+    inputs:
+      site_slug:
+        description: "Marketing-site record slug (e.g. example-client)"
+        required: true
+        type: string
+      hub_base:
+        description: "Hub base URL — defaults to gisele.flyinggoatagency.com"
+        required: false
+        type: string
+        default: "https://gisele.flyinggoatagency.com"
+
+concurrency:
+  group: generate-marketing-${{ inputs.site_slug }}
+  cancel-in-progress: false
+
+jobs:
+  generate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      HUB_RPC_SECRET: ${{ secrets.HUB_RPC_SECRET }}
+      ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+      VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+      VERCEL_TEAM_ID: ${{ secrets.VERCEL_TEAM_ID }}
+      GH_PAT: ${{ secrets.GH_CLIENT_SITE_PAT }}
+      SITE_SLUG: ${{ inputs.site_slug }}
+      HUB_BASE: ${{ inputs.hub_base }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GH_CLIENT_SITE_PAT }}
+          fetch-depth: 0
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+
+      - name: Fetch site record from hub
+        id: site
+        run: |
+          set -euo pipefail
+          curl -fsSL \
+            -H "Authorization: Bearer ${HUB_RPC_SECRET}" \
+            "${HUB_BASE}/api/employee-hub/marketing-site/${SITE_SLUG}" \
+            > site.json
+          echo "::group::site.json"
+          cat site.json
+          echo "::endgroup::"
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Generate per-page content (Claude Agent SDK)
+        run: node scripts/generate-pages.mjs site.json
+        continue-on-error: false
+
+      - name: Enforce A2P compliance (build-blocking)
+        run: node scripts/enforce-a2p.mjs
+
+      - name: Smoke build
+        run: npm run build
+
+      - name: Configure git
+        run: |
+          # Vercel author-lock email — must be a GitHub-verified email,
+          # otherwise Vercel deploys land in BLOCKED state. The
+          # `201860651+fakebranden@users.noreply.github.com` form maps to
+          # the `fakebranden` GitHub account (no PII) and is the form
+          # already in use by the proposal-site pipeline (per
+          # reference_fga_proposal_site_pipeline + feedback_git_email_vercel_block).
+          git config user.email "201860651+fakebranden@users.noreply.github.com"
+          git config user.name "fga-marketing-bot"
+
+      - name: Commit + push
+        run: |
+          set -euo pipefail
+          git add -A
+          if git diff --cached --quiet; then
+            echo "No file changes to commit — template + brand-config carried straight through."
+          else
+            git commit -m "Generate marketing site for ${SITE_SLUG}"
+            git push
+          fi
+
+      - name: Trigger Vercel deploy
+        id: deploy
+        run: node scripts/trigger-vercel-deploy.mjs site.json
+
+      - name: Callback hub
+        if: always()
+        run: |
+          set -euo pipefail
+          STATUS="$([ "${{ job.status }}" = "success" ] && echo live || echo failed)"
+          LIVE_URL="$(jq -r '.live_url // empty' site.json 2>/dev/null || echo "")"
+          BODY=$(jq -n --arg status "$STATUS" --arg live_url "$LIVE_URL" '{status: $status, live_url: $live_url}')
+          curl -fsSL -X PATCH \
+            -H "Authorization: Bearer ${HUB_RPC_SECRET}" \
+            -H "Content-Type: application/json" \
+            -d "$BODY" \
+            "${HUB_BASE}/api/employee-hub/marketing-site/${SITE_SLUG}" || true
