@@ -173,13 +173,35 @@ const AEO_CONTRACT = `### AEO baseline (every page must inherit)
 - Conversational H2/H3 in question form when natural
 `;
 
-const A2P_CONTRACT = `### A2P enforcement (BUILD-BLOCKING)
-- Every <input type="tel"> MUST co-render <SmsConsent />
-- Every phone-collecting form MUST POST to /api/book (audit-trail route)
-- Privacy Policy MUST carry the "no mobile info shared for marketing" carve-out
-- SMS Terms MUST mirror the verbatim sample_messages from brand.a2p.sample_messages[]
-- SmsConsent checkbox is UNCHECKED by default (carrier rejection trigger if pre-checked)
-- scripts/enforce-a2p.mjs runs pre-commit and fails the build on violations
+const A2P_CONTRACT = `### A2P enforcement (BUILD-BLOCKING — enforce-a2p.mjs greps each file and FAILS the build)
+- ANY phone-collecting input — type="tel", inputMode="tel", autoComplete="tel", or a name/id containing phone/tel/mobile/cell — REQUIRES, IN THE SAME FILE:
+    1. the exact import:  import { SmsConsent } from "@/components/sms-consent";
+    2. rendered EXACTLY as <SmsConsent /> with NO props (it reads legal_entity/dba/sample_messages from brand-config.json itself — passing any prop is a TypeScript build error), inside that same <form>, directly above the submit button.
+  This is non-negotiable: a phone input without same-file SmsConsent fails the build. If you render a booking form with a phone field, you MUST add both lines.
+- NEVER render <ChatWidget /> in a file that also has a phone input (A2P prohibits chat on phone-collecting pages). ChatWidget belongs on /about, /terms, /privacy only.
+- Every phone-collecting form MUST POST to /api/book (audit-trail route).
+- The SmsConsent opt-in checkbox is UNCHECKED by default (a pre-checked box is a carrier rejection trigger).
+- Privacy Policy MUST carry the "no mobile info shared for marketing" carve-out.
+- SMS Terms MUST mirror the verbatim sample_messages from brand.a2p.sample_messages[].
+`;
+
+const LIB_CONTRACT = `### Template APIs — use these EXACT imports + signatures. DO NOT invent props, argument shapes, or helpers.
+- import brand from "@/lib/brand"  — ALWAYS import the brand kit via this exact path (depth-independent). NEVER use a relative "../../brand-config.json" path — it breaks on nested pages (about/, book/). ALL client data comes from here: brand.company, brand.tagline, brand.subtitle, brand.description, brand.canonical_url, brand.colors.{primary,primary_dark,primary_soft,accent,accent_dark,surface,surface_soft,ink,ink_soft,mute,line,line_soft}, brand.contact.{phone,email,address_locality,address_region}, brand.service_areas[], brand.faqs[] ({q,a}), brand.socials.{instagram,facebook,tiktok,youtube,linkedin}
+- import { pageMeta, siteGraph, faqGraph, serviceGraph, canonical } from "@/lib/seo"
+    pageMeta(path: string, title: string, description: string)   ← THREE positional string args, returns Metadata. Not an object arg.
+    siteGraph()   serviceGraph()   — no args
+    faqGraph(entries: {q:string; a:string}[])
+    canonical(path: string): string
+    export const metadata: Metadata = pageMeta("/", \`\${brand.company} — \${brand.tagline}\`, brand.description);
+- Components (all NAMED exports). Prop-less unless noted — render exactly as shown:
+    import { SiteHeader } from "@/components/site-header"      <SiteHeader />
+    import { SiteFooter } from "@/components/site-footer"      <SiteFooter />
+    import { ChatWidget } from "@/components/chat-widget"      <ChatWidget />   (NEVER on a page with a phone input)
+    import { SmsConsent } from "@/components/sms-consent"      <SmsConsent />   (NO props)
+    import { JsonLd } from "@/components/json-ld"              <JsonLd data={siteGraph()} />
+- DO NOT use <HeroVideo /> — it has REQUIRED props (desktopSrc, mobileSrc, poster) and these sites have NO video assets. Build the hero as a full-bleed <section> with a brand-color background or gradient (brand.colors.primary → brand.colors.primary_dark, accented with brand.colors.accent) + a large headline (brand.tagline) overlay + a CTA button linking to /book. No video element.
+- Components with required props (BrandMark, Socials, Reveal) — only use them if you supply the correct props; when unsure, write plain JSX instead. SiteHeader/SiteFooter/ChatWidget/SmsConsent/JsonLd are the safe prop-light ones (per signatures above).
+- Use ONLY components that exist in src/components/. Do not import anything else. When unsure of a signature, write plain JSX instead of guessing.
 `;
 
 // ── Hub callbacks ──────────────────────────────────────────────────
@@ -207,10 +229,17 @@ async function callClaude(systemPrompt, userPrompt) {
   const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
   const msg = await client.messages.create({
     model: "claude-sonnet-4-6",
-    max_tokens: 8192,
+    // Rich marketing pages run 25-35k chars (~8-10k tokens); 8192 truncated them
+    // mid-JSX → parse errors. 16000 gives ample headroom.
+    max_tokens: 16000,
     system: systemPrompt,
     messages: [{ role: "user", content: userPrompt }],
   });
+  if (msg.stop_reason === "max_tokens") {
+    throw new Error(
+      "Claude response hit max_tokens (truncated mid-output) — raise max_tokens or split the page. Refusing to write truncated TSX.",
+    );
+  }
   return msg.content.filter((c) => c.type === "text").map((c) => c.text).join("\n");
 }
 
@@ -251,8 +280,8 @@ async function generateOnePage(page, substrate) {
   }
   const contract = interpolate(readFileSync(contractPath, "utf-8"), brand, substrate?.niche);
   const skillBlock = substrate
-    ? `<fga-pro-max-skill v="0.3.0">\n\n${substrate.reasoning}\n\n${substrate.tokensBlock}\n\n${substrate.recipeBlock}\n\n${AEO_CONTRACT.replace("{LOCAL_BUSINESS_SUBTYPE}", substrate.localBusinessSubtype)}\n\n${A2P_CONTRACT}\n\n</fga-pro-max-skill>`
-    : `${AEO_CONTRACT.replace("{LOCAL_BUSINESS_SUBTYPE}", "LocalBusiness")}\n\n${A2P_CONTRACT}`;
+    ? `<fga-pro-max-skill v="0.3.0">\n\n${substrate.reasoning}\n\n${substrate.tokensBlock}\n\n${substrate.recipeBlock}\n\n${AEO_CONTRACT.replace("{LOCAL_BUSINESS_SUBTYPE}", substrate.localBusinessSubtype)}\n\n${A2P_CONTRACT}\n\n${LIB_CONTRACT}\n\n</fga-pro-max-skill>`
+    : `${AEO_CONTRACT.replace("{LOCAL_BUSINESS_SUBTYPE}", "LocalBusiness")}\n\n${A2P_CONTRACT}\n\n${LIB_CONTRACT}`;
 
   const systemPrompt = `You are the FGA Pro Max site-generation skill writing a single page for a marketing site.\n\n${skillBlock}\n\n${contract}`;
   const userPrompt = `brand-config.json:\n\`\`\`json\n${JSON.stringify(brand, null, 2)}\n\`\`\`\n\nGENERATE THE PAGE NOW. Single fenced \`\`\`tsx code block. No prose outside the fence.`;

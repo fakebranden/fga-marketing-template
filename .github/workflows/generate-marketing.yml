@@ -94,8 +94,8 @@ jobs:
       - name: Enforce A2P compliance (build-blocking)
         run: node scripts/enforce-a2p.mjs
 
-      - name: Smoke build
-        run: npm run build
+      - name: Build (self-repairing — fixes one-off AI slips, then next build)
+        run: node scripts/repair-build.mjs
 
       - name: Commit + push to target repo
         env:

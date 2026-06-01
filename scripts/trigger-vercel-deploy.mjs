@@ -58,11 +58,15 @@ if (!TOKEN) {
 }
 
 const scope = ORG ? ` --scope=${ORG}` : "";
+// Token is passed via the VERCEL_TOKEN env var (Vercel CLI reads it), NEVER as a
+// --token= flag — so it can never appear in a command string / error message.
+const baseEnv = { ...process.env, VERCEL_TOKEN: TOKEN };
+const redact = (s) => String(s == null ? "" : s).split(TOKEN).join("***");
 const vercel = (args, opts = {}) =>
-  execSync(`npx --yes vercel@latest ${args} --token=${TOKEN}${scope}`, {
+  execSync(`npx --yes vercel@latest ${args}${scope}`, {
     stdio: opts.capture ? ["ignore", "pipe", "inherit"] : "inherit",
     encoding: "utf-8",
-    ...opts,
+    env: { ...baseEnv, ...(opts.env || {}) },
   });
 
 try {
@@ -77,21 +81,29 @@ try {
 
   // 2. link → writes .vercel/project.json
   vercel(`link --yes --project=${project}`);
-  const projectId = JSON.parse(readFileSync(".vercel/project.json", "utf-8")).projectId;
+  const linkInfo = JSON.parse(readFileSync(".vercel/project.json", "utf-8"));
+  const projectId = linkInfo.projectId;
+  const orgId = linkInfo.orgId; // REAL team id (team_…) — not the slug; the CLI requires the id form
   console.log(`[trigger-vercel-deploy] linked projectId=${projectId}`);
 
   // 3. set framework + disable SSO/password protection so the live URL is public
   const teamQ = ORG ? `?teamId=${ORG}` : "";
+  // Token passed via $VTK env (shell-expanded by execSync's /bin/sh) so it never
+  // appears literally in the command string.
   execSync(
     `curl -fsS -X PATCH ` +
-      `-H "Authorization: Bearer ${TOKEN}" -H "Content-Type: application/json" ` +
+      `-H "Authorization: Bearer $VTK" -H "Content-Type: application/json" ` +
       `-d '{"framework":"nextjs","ssoProtection":null,"passwordProtection":null}' ` +
       `"https://api.vercel.com/v9/projects/${projectId}${teamQ}"`,
-    { stdio: ["ignore", "ignore", "inherit"] },
+    { stdio: ["ignore", "ignore", "inherit"], env: { ...process.env, VTK: TOKEN } },
   );
 
-  // 4. deploy from source (no --prebuilt; Vercel builds Next.js server-side)
-  const out = vercel(`deploy --prod --yes`, { capture: true });
+  // 4. deploy from source (no --prebuilt; Vercel builds Next.js server-side).
+  // VERCEL_ORG_ID in env REQUIRES VERCEL_PROJECT_ID too — set it from the link.
+  const out = vercel(`deploy --prod --yes`, {
+    capture: true,
+    env: { VERCEL_PROJECT_ID: projectId, VERCEL_ORG_ID: orgId },
+  });
   const m = out.match(/https:\/\/[a-z0-9.-]+\.vercel\.app/i);
   if (!m) {
     console.error("[trigger-vercel-deploy] could not parse deploy URL");
@@ -125,6 +137,6 @@ try {
   setOutput("live_url", liveUrl);
   console.log(`[trigger-vercel-deploy] live_url=${liveUrl}`);
 } catch (err) {
-  console.error("[trigger-vercel-deploy] deploy failed:", err.message || err);
+  console.error("[trigger-vercel-deploy] deploy failed:", redact(err && err.message ? err.message : err));
   process.exit(1);
 }
