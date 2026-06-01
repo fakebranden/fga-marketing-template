@@ -1,13 +1,25 @@
 name: Generate Marketing Site
 
-# Triggered by the n8n orchestrator WF-MARKETING-SITE-GEN via
-# GitHub API workflow_dispatch — see reference_generate_site_button_implementation.
+# Triggered by the n8n orchestrator WF-MARKETING-SITE-GEN (id vQAcf9vO8Homg3Bg)
+# via GitHub API workflow_dispatch — see reference_generate_site_button_implementation
+# + the wf-marketing-site-gen vault card.
+#
+# DISPATCH MODEL (Phase 6 realignment): this workflow runs ON THE TEMPLATE repo
+# (which holds the Actions secrets — child repos created from a template inherit
+# NONE, and fakebranden is a personal account with no org secrets) and checks out
+# the per-client `target_repo` with CROSS_REPO_PAT, exactly like the proven
+# proposal pipeline (fga-client-template/generate.yml). It generates into the
+# client checkout, pushes there, and deploys that repo to Vercel.
 
 on:
   workflow_dispatch:
     inputs:
       site_slug:
-        description: "Marketing-site record slug (e.g. example-client)"
+        description: "Marketing-site record slug (e.g. five-bucks-drinkery)"
+        required: true
+        type: string
+      target_repo:
+        description: "Per-client repo (owner/name) created from this template"
         required: true
         type: string
       hub_base:
@@ -28,15 +40,16 @@ jobs:
       HUB_RPC_SECRET: ${{ secrets.HUB_RPC_SECRET }}
       ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
       VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
-      VERCEL_TEAM_ID: ${{ secrets.VERCEL_TEAM_ID }}
-      GH_PAT: ${{ secrets.GH_CLIENT_SITE_PAT }}
+      VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
       SITE_SLUG: ${{ inputs.site_slug }}
       HUB_BASE: ${{ inputs.hub_base }}
+      TARGET_REPO: ${{ inputs.target_repo }}
     steps:
-      - name: Checkout
+      - name: Checkout per-client target repo
         uses: actions/checkout@v4
         with:
-          token: ${{ secrets.GH_CLIENT_SITE_PAT }}
+          repository: ${{ inputs.target_repo }}
+          token: ${{ secrets.CROSS_REPO_PAT }}
           fetch-depth: 0
 
       - name: Setup Node
@@ -45,24 +58,33 @@ jobs:
           node-version: "20"
           cache: "npm"
 
-      - name: Fetch site record from hub
-        id: site
+      - name: Fetch site record from hub (unwrapped to the flat site object)
         run: |
           set -euo pipefail
+          # The hub GET returns { "site": {...} }. generate-pages.mjs +
+          # trigger-vercel-deploy.mjs both read the FLAT site object, so unwrap
+          # with jq before writing site.json.
           curl -fsSL \
             -H "Authorization: Bearer ${HUB_RPC_SECRET}" \
             "${HUB_BASE}/api/employee-hub/marketing-site/${SITE_SLUG}" \
-            > site.json
+            | jq '.site' > site.json
           echo "::group::site.json"
           cat site.json
           echo "::endgroup::"
+
+      - name: Patch hub status=generating
+        run: |
+          curl -fsSL -X PATCH \
+            -H "Authorization: Bearer ${HUB_RPC_SECRET}" \
+            -H "Content-Type: application/json" \
+            -d "{\"status\":\"generating\",\"detail\":\"GH Actions build started · run ${{ github.run_id }}\"}" \
+            "${HUB_BASE}/api/employee-hub/marketing-site/${SITE_SLUG}" || true
 
       - name: Install dependencies
         run: npm ci
 
       - name: Generate per-page content (Claude Agent SDK)
         run: node scripts/generate-pages.mjs site.json
-        continue-on-error: false
 
       - name: Enforce A2P compliance (build-blocking)
         run: node scripts/enforce-a2p.mjs
@@ -70,29 +92,25 @@ jobs:
       - name: Smoke build
         run: npm run build
 
-      - name: Configure git
-        run: |
-          # Vercel author-lock email — must be a GitHub-verified email,
-          # otherwise Vercel deploys land in BLOCKED state. The
-          # `201860651+fakebranden@users.noreply.github.com` form maps to
-          # the `fakebranden` GitHub account (no PII) and is the form
-          # already in use by the proposal-site pipeline (per
-          # reference_fga_proposal_site_pipeline + feedback_git_email_vercel_block).
-          git config user.email "201860651+fakebranden@users.noreply.github.com"
-          git config user.name "fga-marketing-bot"
-
-      - name: Commit + push
+      - name: Commit + push to target repo
+        env:
+          GH_TOKEN: ${{ secrets.CROSS_REPO_PAT }}
         run: |
           set -euo pipefail
+          # Vercel author-lock email — must map to a GitHub-verified account or
+          # deploys land BLOCKED (feedback_git_email_vercel_block).
+          git config user.email "201860651+fakebranden@users.noreply.github.com"
+          git config user.name "fga-marketing-bot"
+          git remote set-url origin "https://x-access-token:${GH_TOKEN}@github.com/${TARGET_REPO}.git"
           git add -A
           if git diff --cached --quiet; then
-            echo "No file changes to commit — template + brand-config carried straight through."
+            echo "No file changes to commit — template carried straight through."
           else
-            git commit -m "Generate marketing site for ${SITE_SLUG}"
-            git push
+            git commit -m "Generate marketing site for ${SITE_SLUG} (run ${{ github.run_id }})"
+            git push origin HEAD:main
           fi
 
-      - name: Trigger Vercel deploy
+      - name: Deploy to Vercel (production)
         id: deploy
         run: node scripts/trigger-vercel-deploy.mjs site.json
 
@@ -100,9 +118,10 @@ jobs:
         if: always()
         run: |
           set -euo pipefail
-          STATUS="$([ "${{ job.status }}" = "success" ] && echo live || echo failed)"
-          LIVE_URL="$(jq -r '.live_url // empty' site.json 2>/dev/null || echo "")"
-          BODY=$(jq -n --arg status "$STATUS" --arg live_url "$LIVE_URL" '{status: $status, live_url: $live_url}')
+          if [ "${{ job.status }}" = "success" ]; then STATUS="live"; else STATUS="failed"; fi
+          LIVE_URL="${{ steps.deploy.outputs.live_url }}"
+          BODY=$(jq -n --arg status "$STATUS" --arg live_url "$LIVE_URL" --arg run "${{ github.run_id }}" \
+            '{status: $status, live_url: (if $live_url == "" then null else $live_url end), detail: ("generate-marketing.yml " + $status + " · run " + $run)}')
           curl -fsSL -X PATCH \
             -H "Authorization: Bearer ${HUB_RPC_SECRET}" \
             -H "Content-Type: application/json" \
