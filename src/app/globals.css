@@ -182,3 +182,53 @@ body {
   outline: 3px solid var(--accent);
   outline-offset: 2px;
 }
+
+/* ─────────────────────────────────────────────────────────────────────────
+ * SOTY SUBSTRATE — token bridge + utility classes (ported from /showcase).
+ * Maps the showcase var names onto this template's brand-config tokens so one
+ * brand kit drives the premium interactive system. See SOTY-SUBSTRATE-PLAN.md.
+ * ───────────────────────────────────────────────────────────────────────── */
+:root {
+  --volt: var(--accent);
+  --ink-faint: var(--mute);
+  --paper-2: var(--surface-soft);
+  --line-strong: var(--mute);
+  --background: var(--surface);
+  --foreground: var(--ink);
+  --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+  --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
+  --margin: clamp(1.25rem, 5vw, 5rem);
+  --maxw: 92rem;
+}
+
+.t-display { font-family: var(--font-display); font-weight: 700; font-size: clamp(2.6rem, 8vw, 7.5rem); line-height: 0.95; letter-spacing: 0.005em; text-transform: uppercase; text-wrap: balance; }
+.t-display em, .t-accent { font-style: normal; background: var(--volt); color: var(--accent-dark, #141204); padding: 0 0.1em; box-decoration-break: clone; -webkit-box-decoration-break: clone; }
+.t-h2 { font-family: var(--font-display); font-weight: 700; font-size: clamp(2.1rem, 5.6vw, 5rem); line-height: 0.98; letter-spacing: -0.01em; text-transform: uppercase; text-wrap: balance; }
+.t-h3 { font-family: var(--font-display); font-weight: 700; font-size: clamp(1.45rem, 2.4vw, 2.2rem); line-height: 1.04; text-transform: uppercase; }
+.t-body { font-family: var(--font-body); font-weight: 400; font-size: clamp(1rem, 1.1vw, 1.2rem); line-height: 1.6; color: var(--ink-soft); max-width: 56ch; text-wrap: pretty; }
+.t-lead { font-family: var(--font-body); font-weight: 400; font-size: clamp(1.1rem, 1.5vw, 1.55rem); line-height: 1.45; color: var(--ink-soft); max-width: 42ch; text-wrap: balance; }
+.t-mono { font-family: var(--font-mono); font-weight: 400; font-size: 0.68rem; line-height: 1; letter-spacing: 0.18em; text-transform: uppercase; color: var(--ink-faint); font-variant-numeric: tabular-nums; }
+
+.section { padding-block: clamp(5rem, 11vw, 11rem); }
+.section-tight { padding-block: clamp(3.5rem, 7vw, 7rem); }
+.wrap { margin-inline: auto; width: 100%; max-width: var(--maxw); padding-inline: var(--margin); }
+
+.btn { display: inline-flex; align-items: center; gap: 0.5rem; border-radius: 9999px; font-family: var(--font-mono); font-size: 0.7rem; letter-spacing: 0.12em; text-transform: uppercase; padding: 0.95rem 1.6rem; transition: transform 160ms var(--ease-out), background 200ms var(--ease-out), color 200ms var(--ease-out), border-color 200ms var(--ease-out); will-change: transform; cursor: pointer; }
+.btn-primary { background: var(--volt); color: var(--accent-dark, #141204); }
+.btn-primary:hover { filter: brightness(1.08); }
+.btn:active { transform: scale(0.97); }
+.btn-ghost { background: transparent; color: var(--ink); border: 1px solid var(--line-strong); }
+.btn-ghost:hover { border-color: var(--ink); background: color-mix(in oklch, var(--ink) 5%, transparent); }
+
+.sc-link { position: relative; color: var(--ink); }
+.sc-link::after { content: ""; position: absolute; left: 0; bottom: -2px; height: 1.5px; width: 100%; background: var(--volt); transform: scaleX(0); transform-origin: left; transition: transform 0.4s var(--ease-out); }
+.sc-link:hover::after { transform: scaleX(1); }
+
+.sc-grain { position: fixed; inset: 0; z-index: 70; pointer-events: none; opacity: 0.055; mix-blend-mode: multiply; background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 220 220' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.82' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E"); }
+.sc-vignette { position: fixed; inset: 0; z-index: 69; pointer-events: none; background: radial-gradient(120% 100% at 50% 25%, transparent 68%, rgba(20,20,12,0.06) 100%); }
+.sc-cur-dot { position: fixed; top: 0; left: 0; width: 6px; height: 6px; margin: -3px 0 0 -3px; border-radius: 9999px; background: var(--volt); mix-blend-mode: difference; pointer-events: none; z-index: 9999; will-change: transform; }
+.sc-cur-ring { position: fixed; top: 0; left: 0; width: 38px; height: 38px; margin: -19px 0 0 -19px; border-radius: 9999px; border: 1px solid var(--volt); mix-blend-mode: difference; pointer-events: none; z-index: 9999; will-change: transform; }
+@media (pointer: fine) { html.sc-cursor-on body, html.sc-cursor-on body * { cursor: none !important; } }
+:focus-visible { outline: 2px solid var(--volt); outline-offset: 3px; }
+@keyframes sc-marquee { to { transform: translateX(calc(-50% - 0.75rem)); } }
+@media (prefers-reduced-motion: reduce) { .sc-grain, [class*="animate-footer"] { animation: none; } }
