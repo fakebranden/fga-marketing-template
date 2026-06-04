@@ -1,34 +1,42 @@
 #!/usr/bin/env node
 /**
- * generate-pages.mjs — Phase 5e Agent SDK driver for FGA Pro Max.
+ * generate-pages.mjs — Phase 5e Agent SDK driver for FGA Pro Max (SOTY model).
  *
- * Composes per-page Claude system prompts from:
- *   1. The fga-pro-max skill block (tokens + niche reasoning + recipes +
- *      AEO baseline + A2P enforcement contract)
- *   2. The page-specific contract from prompts/<page>.md
- * …then runs Claude Sonnet 4.6 via @anthropic-ai/sdk per page, writes the
- * generated TSX to src/app/<route>/page.tsx, and emits status PATCHes
- * back to the hub via HUB_RPC_SECRET-authenticated curl.
+ * ARCHITECTURE (per SOTY-SUBSTRATE-PLAN.md Phase 4 + AGENTS.md):
+ *   The marketing-site layout is a FIXED, hand-crafted SOTY composition
+ *   (src/app/page.tsx server shell + src/components/showcase/SotyHome.tsx). The
+ *   pipeline does NOT generate page TSX from scratch — it FILLS that composition
+ *   with the brand's niche-tuned CONTENT by overwriting brand-config.json only.
  *
- * Usage:
- *   node scripts/generate-pages.mjs <site.json-path>
+ *   This driver therefore:
+ *     1. Merges the hub site.json brand into brand-config.json.
+ *     2. Loads the fga-pro-max skill substrate (niche reasoning) for grammar.
+ *     3. Runs ONE Claude call against prompts/home.md to produce a strict JSON
+ *        content object (tagline, subtitle, description, faqs, content{...}).
+ *     4. Validates + sanitizes every field; an invalid field falls back to the
+ *        existing brand-config value, so generation never ships worse than the
+ *        template default. Then writes brand-config.json.
+ *     5. NEVER touches src/app/**.tsx. /terms + /privacy carry carrier-locked
+ *        SMS prose (AGENTS.md: DO NOT REGENERATE); the home is the fixed SOTY
+ *        substrate; both are preserved by construction.
  *
- * Env required:
- *   ANTHROPIC_API_KEY        — Sonnet API key
- *   HUB_BASE                  — e.g. https://gisele.flyinggoatagency.com
- *   HUB_RPC_SECRET            — for hub status PATCH callbacks
- *   FGA_PRO_MAX_SKILL_DIR     — path to fga-pro-max-skill checkout
+ *   Testimonials are NOT fabricated — they are taken from the hub site record
+ *   (site.testimonials / brand.content.testimonials) when present, else left
+ *   empty so the section simply does not render.
  *
- * Token budget enforced per substrate (from docs/ARCHITECTURE.md):
- *   tokens ≤ 2,000  ·  reasoning ≤ 3,000  ·  recipe ≤ 1,000
+ * Usage:    node scripts/generate-pages.mjs <site.json-path>
  *
- * Exit codes:
- *   0  — all pages generated, hub PATCHed status=deploying
- *   1  — any page failed (PATCHes status=failed before exit)
- *   2  — bad CLI args
- *   3  — missing env (ANTHROPIC_API_KEY etc.)
+ * Env:
+ *   ANTHROPIC_API_KEY      — required (Sonnet)
+ *   HUB_BASE               — hub origin for status PATCHes (default prod)
+ *   HUB_RPC_SECRET         — bearer for hub PATCH callbacks
+ *   FGA_PRO_MAX_SKILL_DIR  — optional; niche reasoning if present
+ *   GENERATE_FIXTURE       — optional; path to a canned Claude JSON response
+ *                            (skips the API call — local tests / CI smoke)
+ *
+ * Exit codes: 0 ok · 1 generation/validation failure · 2 bad args · 3 missing env
  */
-import { readFileSync, writeFileSync, existsSync, mkdirSync } from "node:fs";
+import { readFileSync, writeFileSync, existsSync } from "node:fs";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -40,7 +48,8 @@ if (!sitePath) {
   console.error("Usage: node scripts/generate-pages.mjs <site.json-path>");
   process.exit(2);
 }
-if (!process.env.ANTHROPIC_API_KEY) {
+const FIXTURE = process.env.GENERATE_FIXTURE || "";
+if (!process.env.ANTHROPIC_API_KEY && !FIXTURE) {
   console.error("[generate-pages] missing env: ANTHROPIC_API_KEY");
   process.exit(3);
 }
@@ -54,158 +63,53 @@ const site = JSON.parse(readFileSync(sitePath, "utf-8"));
 const brandConfigPath = join(ROOT, "brand-config.json");
 const brand = JSON.parse(readFileSync(brandConfigPath, "utf-8"));
 
+// Merge the hub-supplied brand facts (colors, contact, company, niche, …) first.
 if (site.brand) Object.assign(brand, site.brand);
 if (site.niche) brand.niche = site.niche;
 if (site.reference_style) brand.reference_style = site.reference_style;
 if (site.reference_style_url) brand.reference_style_url = site.reference_style_url;
-
 writeFileSync(brandConfigPath, JSON.stringify(brand, null, 2));
 console.log(
-  `[generate-pages] brand-config merged. niche=${brand.niche} reference_style=${brand.reference_style || "fga-canonical"}`,
+  `[generate-pages] brand merged. company=${brand.company} niche=${brand.niche} reference_style=${brand.reference_style || "fga-canonical"}`,
 );
 
-// ── Token budget ────────────────────────────────────────────────────
-const BUDGETS = { tokens: 2000, reasoning: 3000, recipe: 1000 };
+// ── Skill substrate (niche grammar) ─────────────────────────────────
+const BUDGET_REASONING = 3000;
 const approxTokens = (s) => Math.ceil((s || "").length / 4);
-
 function trimToBudget(text, budget, label) {
   const t = approxTokens(text);
   if (t <= budget) return text;
   const cut = Math.floor(text.length * (budget / t) * 0.95);
   return text.slice(0, cut) + `\n\n[TRIMMED to fit ${label} budget — ${budget} tokens]`;
 }
-
-// ── Skill substrate ─────────────────────────────────────────────────
 function resolveNicheFromVertical(vertical, taxonomy) {
   if (!vertical) return null;
   const v = vertical.toLowerCase();
-  for (const n of taxonomy.niches) {
-    if (n.matches.some((m) => v.includes(m))) return n.slug;
-  }
+  for (const n of taxonomy.niches) if (n.matches.some((m) => v.includes(m))) return n.slug;
   return null;
 }
-
-function summarizeTokens(t) {
-  const lines = [`Name: ${t.name || t.id}`];
-  if (t.description) lines.push(`Character: ${t.description}`);
-  if (t.tokens?.colors) {
-    lines.push("\nColors:");
-    for (const [k, v] of Object.entries(t.tokens.colors)) {
-      const value = typeof v === "string" ? v : v.value;
-      const role = typeof v === "object" ? v.role : "";
-      lines.push(`- ${k} = ${value} — ${role}`);
-    }
-  }
-  if (t.tokens?.typography) {
-    lines.push("\nTypography:");
-    for (const [k, v] of Object.entries(t.tokens.typography)) {
-      const value = typeof v === "string" ? v : v.value;
-      const role = typeof v === "object" ? v.role : "";
-      lines.push(`- ${k} = ${value} — ${role}`);
-    }
-  }
-  if (Array.isArray(t.antiPatterns) && t.antiPatterns.length) {
-    lines.push("\nToken anti-patterns:");
-    for (const a of t.antiPatterns) lines.push(`- ${a}`);
-  }
-  return lines.join("\n");
-}
-
-function summarizeRecipes(r) {
-  const lines = ["Per-section recipe (which library wins):"];
-  for (const [section, spec] of Object.entries(r.sections || {})) {
-    const fb = spec.fallback ? ` (fallback ${spec.fallback})` : "";
-    lines.push(`- ${section}: ${spec.default}${fb}`);
-  }
-  if (r.conflictResolution?.tiebreaker) {
-    lines.push(`\nTiebreaker: ${r.conflictResolution.tiebreaker}`);
-  }
-  return lines.join("\n");
-}
-
-function loadSkillSubstrate() {
+function loadNicheReasoning() {
   if (!existsSync(SKILL_DIR)) {
-    console.warn(`[generate-pages] FGA_PRO_MAX_SKILL_DIR not found (${SKILL_DIR}) — no skill block`);
-    return null;
+    console.warn(`[generate-pages] FGA_PRO_MAX_SKILL_DIR not found (${SKILL_DIR}) — generic grammar`);
+    return { niche: brand.niche || null, reasoning: "" };
   }
-  const taxonomy = JSON.parse(readFileSync(join(SKILL_DIR, "reasoning/_taxonomy.json"), "utf-8"));
-  const niche = brand.niche || resolveNicheFromVertical(site.vertical, taxonomy);
-  const niceFile = niche
-    ? readFileSync(join(SKILL_DIR, `reasoning/${niche}.md`), "utf-8")
-    : "";
-  const antipatterns = readFileSync(join(SKILL_DIR, "reasoning/_antipatterns.md"), "utf-8");
-  const reasoning = trimToBudget(
-    `### Niche reasoning: ${niche || "(none)"}\n\n${niceFile}\n\n### Universal anti-patterns\n\n${antipatterns}`,
-    BUDGETS.reasoning,
-    "reasoning",
-  );
-
-  let tokenSource = "fga-canonical";
-  let tokenPath = join(SKILL_DIR, "tokens/fga-canonical.json");
-  if (brand.reference_style && brand.reference_style !== "fga-canonical" && brand.reference_style !== "extractor-pending") {
-    const p = join(SKILL_DIR, `tokens/seeds/${brand.reference_style}.json`);
-    if (existsSync(p)) {
-      tokenSource = brand.reference_style;
-      tokenPath = p;
-    }
+  try {
+    const taxonomy = JSON.parse(readFileSync(join(SKILL_DIR, "reasoning/_taxonomy.json"), "utf-8"));
+    const niche = brand.niche || resolveNicheFromVertical(site.vertical, taxonomy);
+    const nicheFile = niche && existsSync(join(SKILL_DIR, `reasoning/${niche}.md`))
+      ? readFileSync(join(SKILL_DIR, `reasoning/${niche}.md`), "utf-8")
+      : "";
+    const reasoning = nicheFile
+      ? trimToBudget(`### Niche grammar: ${niche}\n\n${nicheFile}`, BUDGET_REASONING, "reasoning")
+      : "";
+    return { niche, reasoning };
+  } catch (e) {
+    console.warn(`[generate-pages] skill substrate load failed: ${e.message} — generic grammar`);
+    return { niche: brand.niche || null, reasoning: "" };
   }
-  const tokenJson = JSON.parse(readFileSync(tokenPath, "utf-8"));
-  const tokensBlock = trimToBudget(
-    `### Design tokens: ${tokenSource}\n\n${summarizeTokens(tokenJson)}`,
-    BUDGETS.tokens,
-    "tokens",
-  );
-
-  const recipes = JSON.parse(readFileSync(join(SKILL_DIR, "recipes/sections.json"), "utf-8"));
-  const recipeBlock = trimToBudget(summarizeRecipes(recipes), BUDGETS.recipe, "recipe");
-
-  const localBusinessSubtype =
-    taxonomy.niches.find((n) => n.slug === niche)?.localBusinessSubtype || "LocalBusiness";
-
-  return { niche, tokenSource, reasoning, tokensBlock, recipeBlock, localBusinessSubtype };
 }
 
-const AEO_CONTRACT = `### AEO baseline (every page must inherit)
-- Required helpers: src/lib/seo.ts (siteGraph, faqGraph, pageMeta), src/components/json-ld.tsx
-- JSON-LD: Organization + LocalBusiness (subtype: {LOCAL_BUSINESS_SUBTYPE}) + WebSite, all cross-referenced by @id
-- FAQPage on home with 6-8 conversational Q&A pairs from brand.faqs[]
-- Use declarative "is/are/serves" sentences in intros (AI engines lift these)
-- Conversational H2/H3 in question form when natural
-`;
-
-const A2P_CONTRACT = `### A2P enforcement (BUILD-BLOCKING — enforce-a2p.mjs greps each file and FAILS the build)
-- ANY phone-collecting input — type="tel", inputMode="tel", autoComplete="tel", or a name/id containing phone/tel/mobile/cell — REQUIRES, IN THE SAME FILE:
-    1. the exact import:  import { SmsConsent } from "@/components/sms-consent";
-    2. rendered EXACTLY as <SmsConsent /> with NO props (it reads legal_entity/dba/sample_messages from brand-config.json itself — passing any prop is a TypeScript build error), inside that same <form>, directly above the submit button.
-  This is non-negotiable: a phone input without same-file SmsConsent fails the build. If you render a booking form with a phone field, you MUST add both lines.
-- NEVER render <ChatWidget /> in a file that also has a phone input (A2P prohibits chat on phone-collecting pages). ChatWidget belongs on /about, /terms, /privacy only.
-- Every phone-collecting form MUST POST to /api/book (audit-trail route).
-- The SmsConsent opt-in checkbox is UNCHECKED by default (a pre-checked box is a carrier rejection trigger).
-- Privacy Policy MUST carry the "no mobile info shared for marketing" carve-out.
-- SMS Terms MUST mirror the verbatim sample_messages from brand.a2p.sample_messages[].
-`;
-
-const LIB_CONTRACT = `### Template APIs — use these EXACT imports + signatures. DO NOT invent props, argument shapes, or helpers.
-- import brand from "@/lib/brand"  — ALWAYS import the brand kit via this exact path (depth-independent). NEVER use a relative "../../brand-config.json" path — it breaks on nested pages (about/, book/). ALL client data comes from here: brand.company, brand.tagline, brand.subtitle, brand.description, brand.canonical_url, brand.colors.{primary,primary_dark,primary_soft,accent,accent_dark,surface,surface_soft,ink,ink_soft,mute,line,line_soft}, brand.contact.{phone,email,address_locality,address_region}, brand.service_areas[], brand.faqs[] ({q,a}), brand.socials.{instagram,facebook,tiktok,youtube,linkedin}
-- import { pageMeta, siteGraph, faqGraph, serviceGraph, canonical } from "@/lib/seo"
-    pageMeta(path: string, title: string, description: string)   ← THREE positional string args, returns Metadata. Not an object arg.
-    siteGraph()   serviceGraph()   — no args
-    faqGraph(entries: {q:string; a:string}[])
-    canonical(path: string): string
-    export const metadata: Metadata = pageMeta("/", \`\${brand.company} — \${brand.tagline}\`, brand.description);
-- PAGES ARE SERVER COMPONENTS (they export metadata). DO NOT use ANY React event handlers — no onClick, onMouseEnter, onMouseLeave, onChange, onSubmit, etc. (they cause a build-blocking "Event handlers cannot be passed to Client Component props" prerender error). For interactivity use ONLY: plain <a href="#id"> anchors, native <form action=...> submission, CSS :hover/:focus (add classes; do not inline JS), and <details>/<summary> for accordions. Hover color changes go in className, never style={{}} + onMouseEnter.
-- Components (all NAMED exports). Prop-less unless noted — render exactly as shown:
-    import { SiteHeader } from "@/components/site-header"      <SiteHeader />
-    import { SiteFooter } from "@/components/site-footer"      <SiteFooter />
-    import { ChatWidget } from "@/components/chat-widget"      <ChatWidget />   (NEVER on a page with a phone input)
-    import { SmsConsent } from "@/components/sms-consent"      <SmsConsent />   (NO props)
-    import { JsonLd } from "@/components/json-ld"              <JsonLd data={siteGraph()} />
-- DO NOT use <HeroVideo /> — it has REQUIRED props (desktopSrc, mobileSrc, poster) and these sites have NO video assets. Build the hero as a full-bleed <section> with a brand-color background or gradient (brand.colors.primary → brand.colors.primary_dark, accented with brand.colors.accent) + a large headline (brand.tagline) overlay + a CTA button linking to /book. No video element.
-- Components with required props (BrandMark, Socials, Reveal) — only use them if you supply the correct props; when unsure, write plain JSX instead. SiteHeader/SiteFooter/ChatWidget/SmsConsent/JsonLd are the safe prop-light ones (per signatures above).
-- Use ONLY components that exist in src/components/. Do not import anything else. When unsure of a signature, write plain JSX instead of guessing.
-`;
-
-// ── Hub callbacks ──────────────────────────────────────────────────
+// ── Hub callbacks ───────────────────────────────────────────────────
 async function patchHub(updates) {
   if (!HUB_RPC_SECRET || !site.slug) return;
   try {
@@ -220,116 +124,172 @@ async function patchHub(updates) {
   }
 }
 
-// ── Anthropic SDK ──────────────────────────────────────────────────
+// ── Anthropic SDK ───────────────────────────────────────────────────
 async function callClaude(systemPrompt, userPrompt) {
+  if (FIXTURE) {
+    console.log(`[generate-pages] using fixture response: ${FIXTURE}`);
+    return readFileSync(FIXTURE, "utf-8");
+  }
   const sdkMod = await import("@anthropic-ai/sdk").catch((err) => {
-    console.error(`[generate-pages] @anthropic-ai/sdk not installed. Run: npm i @anthropic-ai/sdk`);
+    console.error("[generate-pages] @anthropic-ai/sdk not installed. Run: npm i @anthropic-ai/sdk");
     throw err;
   });
   const Anthropic = sdkMod.default || sdkMod.Anthropic;
   const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
-  // Stream the response: at high max_tokens the SDK requires streaming (a
-  // non-streaming request that could exceed 10 min is rejected). Streaming also
-  // removes that ceiling. max_tokens 28000 gives ample headroom for verbose
-  // pages; the truncation guard below still catches any overrun.
   const stream = client.messages.stream({
     model: "claude-sonnet-4-6",
-    max_tokens: 28000,
+    max_tokens: 8000,
     system: systemPrompt,
     messages: [{ role: "user", content: userPrompt }],
   });
   const msg = await stream.finalMessage();
   if (msg.stop_reason === "max_tokens") {
-    throw new Error(
-      "Claude response hit max_tokens (truncated mid-output) — raise max_tokens or split the page. Refusing to write truncated TSX.",
-    );
+    throw new Error("Claude response hit max_tokens (truncated) — refusing to parse partial JSON.");
   }
   return msg.content.filter((c) => c.type === "text").map((c) => c.text).join("\n");
 }
 
-function extractTsxFromResponse(text) {
-  const fence = /```(?:tsx|typescript|jsx)?\s*\n([\s\S]*?)\n```/m;
-  const m = text.match(fence);
-  return m ? m[1] : text.trim();
+function extractJson(text) {
+  // Prefer a fenced ```json block; else the first balanced {...}.
+  const fence = text.match(/```(?:json)?\s*\n([\s\S]*?)\n```/m);
+  const raw = fence ? fence[1] : text.slice(text.indexOf("{"), text.lastIndexOf("}") + 1);
+  return JSON.parse(raw);
 }
 
-// ── Per-page execution ────────────────────────────────────────────
-const PAGES = [
-  { name: "home", route: "/", out: "src/app/page.tsx", always: true },
-  { name: "about", route: "/about", out: "src/app/about/page.tsx", always: true },
-  { name: "terms", route: "/terms", out: "src/app/terms/page.tsx", always: true },
-  { name: "privacy", route: "/privacy", out: "src/app/privacy/page.tsx", always: true },
-  {
-    name: "book",
-    route: "/book",
-    out: "src/app/book/page.tsx",
-    always: false,
-    when: (b) => b.has_booking !== false,
-  },
-];
+// ── Validation / sanitization ───────────────────────────────────────
+// Every field that fails validation falls back to the existing brand-config
+// value, so a partial/garbled LLM response degrades to the template default
+// instead of breaking the SOTY render.
+const str = (v) => (typeof v === "string" && v.trim() ? v.trim() : null);
 
-function interpolate(text, b, niche) {
-  return text
-    .replace(/\{\{business_name\}\}/g, b.business_name || "the business")
-    .replace(/\{\{niche\}\}/g, niche || "agency-b2b")
-    .replace(/\{\{legal_entity\}\}/g, b.legal_entity || b.business_name || "")
-    .replace(/\{\{dba\}\}/g, b.dba || b.business_name || "");
-}
+function sanitize(gen) {
+  const prevContent = brand.content ?? {};
+  const out = {};
 
-async function generateOnePage(page, substrate) {
-  const contractPath = join(ROOT, "prompts", `${page.name}.md`);
-  if (!existsSync(contractPath)) {
-    console.warn(`[generate-pages] no contract for ${page.name} — skipping`);
-    return { page: page.name, skipped: true };
+  out.tagline = str(gen.tagline) ?? brand.tagline;
+  out.subtitle = str(gen.subtitle) ?? brand.subtitle;
+  out.description = str(gen.description) ?? brand.description;
+
+  // FAQs — 4..8 entries of {q,a}; else keep existing.
+  const faqs = Array.isArray(gen.faqs)
+    ? gen.faqs.map((f) => ({ q: str(f?.q), a: str(f?.a) })).filter((f) => f.q && f.a).slice(0, 8)
+    : [];
+  out.faqs = faqs.length >= 4 ? faqs : brand.faqs;
+
+  const gc = gen.content ?? {};
+  const content = {};
+
+  const marquee = (Array.isArray(gc.marquee) ? gc.marquee.map(str).filter(Boolean) : []).slice(0, 6);
+  content.marquee = marquee.length >= 4 ? marquee : prevContent.marquee;
+
+  const ps = gc.pinned_statement;
+  if (ps && str(ps.text)) {
+    const aw = str(ps.accent_word);
+    content.pinned_statement = {
+      text: ps.text.trim(),
+      // accent_word must literally appear in the statement (PinnedStatement highlights it).
+      accent_word: aw && ps.text.toLowerCase().includes(aw.toLowerCase()) ? aw : undefined,
+    };
+  } else {
+    content.pinned_statement = prevContent.pinned_statement;
   }
-  const contract = interpolate(readFileSync(contractPath, "utf-8"), brand, substrate?.niche);
-  const skillBlock = substrate
-    ? `<fga-pro-max-skill v="0.3.0">\n\n${substrate.reasoning}\n\n${substrate.tokensBlock}\n\n${substrate.recipeBlock}\n\n${AEO_CONTRACT.replace("{LOCAL_BUSINESS_SUBTYPE}", substrate.localBusinessSubtype)}\n\n${A2P_CONTRACT}\n\n${LIB_CONTRACT}\n\n</fga-pro-max-skill>`
-    : `${AEO_CONTRACT.replace("{LOCAL_BUSINESS_SUBTYPE}", "LocalBusiness")}\n\n${A2P_CONTRACT}\n\n${LIB_CONTRACT}`;
 
-  const systemPrompt = `You are the FGA Pro Max site-generation skill writing a single page for a marketing site.\n\n${skillBlock}\n\n${contract}`;
-  const userPrompt = `brand-config.json:\n\`\`\`json\n${JSON.stringify(brand, null, 2)}\n\`\`\`\n\nGENERATE THE PAGE NOW. Single fenced \`\`\`tsx code block. No prose outside the fence.`;
+  const vp = Array.isArray(gc.value_props)
+    ? gc.value_props.map((v) => ({ title: str(v?.title), description: str(v?.description) }))
+        .filter((v) => v.title && v.description).slice(0, 4)
+    : [];
+  content.value_props = vp.length >= 3 ? vp : prevContent.value_props;
 
-  console.log(`[generate-pages] generating ${page.name} (${page.route})…`);
-  await patchHub({ status: "generating", detail: `Generating ${page.name}`, history_kind: "generating", history_detail: `page: ${page.name}` });
+  const steps = Array.isArray(gc.process_steps)
+    ? gc.process_steps.map((s, i) => ({
+        step: str(s?.step) ?? String(i + 1).padStart(2, "0"),
+        title: str(s?.title),
+        description: str(s?.description),
+      })).filter((s) => s.title && s.description).slice(0, 3)
+    : [];
+  content.process_steps = steps.length === 3 ? steps : prevContent.process_steps;
 
-  const text = await callClaude(systemPrompt, userPrompt);
-  const tsx = extractTsxFromResponse(text);
-  if (!tsx || tsx.length < 100) throw new Error(`Generated TSX for ${page.name} too short (${tsx.length} chars)`);
+  const cta = gc.cta;
+  if (cta && str(cta.title)) {
+    content.cta = {
+      kicker: str(cta.kicker) ?? "",
+      title: cta.title.trim(),
+      subtitle: str(cta.subtitle) ?? "",
+      button: str(cta.button) ?? "Get started",
+    };
+  } else {
+    content.cta = prevContent.cta;
+  }
 
-  const outPath = join(ROOT, page.out);
-  mkdirSync(dirname(outPath), { recursive: true });
-  writeFileSync(outPath, tsx);
-  console.log(`[generate-pages] wrote ${page.out} (${tsx.length} chars)`);
-  return { page: page.name, bytes: tsx.length };
+  // Testimonials are NEVER fabricated. Take real ones from the hub record only,
+  // and drop any leftover "Replace with…" template placeholders.
+  const provided = site.testimonials || site.brand?.content?.testimonials || prevContent.testimonials;
+  const tlist = Array.isArray(provided)
+    ? provided.map((t) => ({ quote: str(t?.quote), author: str(t?.author), location: str(t?.location) || undefined }))
+        .filter((t) => t.quote && t.author && !/replace/i.test(t.author))
+    : [];
+  content.testimonials = tlist;
+
+  out.content = content;
+  return out;
 }
 
+// ── Main ────────────────────────────────────────────────────────────
 async function main() {
   console.log(`[generate-pages] starting for slug=${site.slug}`);
-  await patchHub({ status: "generating", detail: "Composing skill substrate" });
+  await patchHub({ status: "generating", detail: "Composing niche-tuned content" });
 
-  const substrate = loadSkillSubstrate();
-  if (substrate) {
-    console.log(`[generate-pages] skill substrate composed. niche=${substrate.niche} reference_style=${substrate.tokenSource}`);
+  const contractPath = join(ROOT, "prompts", "home.md");
+  if (!existsSync(contractPath)) {
+    console.error("[generate-pages] missing prompts/home.md content contract");
+    await patchHub({ status: "failed", error: "missing prompts/home.md" });
+    process.exit(1);
+  }
+  const contract = readFileSync(contractPath, "utf-8");
+  const { niche, reasoning } = loadNicheReasoning();
+
+  const systemPrompt =
+    `You are the FGA Pro Max content writer. The marketing site layout is FIXED — ` +
+    `you are NOT writing code, you are writing the niche-tuned COPY that fills it.\n\n` +
+    (reasoning ? `${reasoning}\n\n` : "") +
+    contract;
+
+  const facts = {
+    company: brand.company,
+    niche: niche || brand.niche,
+    legal_entity: brand.legal_entity,
+    description: brand.description,
+    service_areas: brand.service_areas,
+    contact: brand.contact,
+    hub_notes: site.notes || site.brief || site.description || "",
+  };
+  const userPrompt =
+    `Business facts (the ONLY source of truth — never invent prices, addresses, hours, stats, or reviews):\n` +
+    `\`\`\`json\n${JSON.stringify(facts, null, 2)}\n\`\`\`\n\n` +
+    `Return ONE JSON object exactly matching the schema in the contract. No prose outside the JSON.`;
+
+  console.log(`[generate-pages] generating content (niche=${niche || "generic"})…`);
+  const text = await callClaude(systemPrompt, userPrompt);
+
+  let gen;
+  try {
+    gen = extractJson(text);
+  } catch (e) {
+    console.error(`[generate-pages] could not parse JSON from Claude: ${e.message}`);
+    await patchHub({ status: "failed", error: `content JSON parse: ${e.message}` });
+    process.exit(1);
   }
 
-  const results = [];
-  for (const page of PAGES) {
-    if (!page.always && page.when && !page.when(brand)) {
-      console.log(`[generate-pages] skipping ${page.name} (condition false)`);
-      continue;
-    }
-    try {
-      results.push(await generateOnePage(page, substrate));
-    } catch (e) {
-      console.error(`[generate-pages] ${page.name} FAILED: ${e.message}`);
-      await patchHub({ status: "failed", error: `Page ${page.name}: ${e.message}` });
-      process.exit(1);
-    }
-  }
+  const sanitized = sanitize(gen);
+  Object.assign(brand, sanitized);
+  writeFileSync(brandConfigPath, JSON.stringify(brand, null, 2));
 
-  console.log(`[generate-pages] complete. ${results.length} pages generated.`);
-  await patchHub({ status: "deploying", detail: `${results.length} pages generated, smoke build next` });
+  console.log(
+    `[generate-pages] content written. tagline="${brand.tagline}" ` +
+    `faqs=${brand.faqs?.length ?? 0} value_props=${brand.content?.value_props?.length ?? 0} ` +
+    `steps=${brand.content?.process_steps?.length ?? 0} testimonials=${brand.content?.testimonials?.length ?? 0}`,
+  );
+  await patchHub({ status: "deploying", detail: "Content generated, smoke build next" });
 }
 
 await main();

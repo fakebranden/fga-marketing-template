@@ -1,34 +1,66 @@
-# Per-page contract: HOME (/)
+# Content contract: HOME (the SOTY marketing landing)
 
-You are generating the home page for {{business_name}}'s marketing site.
+You are writing the **copy** for a fixed, premium marketing-site layout. You are
+**NOT** writing code or choosing layout — the page structure, motion, and design
+are already built. Your only job is to return the niche-tuned text that fills it.
 
-## Required sections (in order)
+The layout renders, in order: a WebGL hero (tagline + subtitle) → a scrolling
+highlight marquee → a pinned statement → a "what you get" value grid → a 3-step
+"how it works" → (optional) testimonials → a closing CTA → a booking form + FAQ.
 
-1. `<HeroVideo />` hero — full-bleed autoplay video w/ text overlay, primary CTA
-2. "What We Offer" — 3-4 category tiles tied to the niche's service vocabulary
-3. Social proof strip — 1 line + logo row OR a stats triplet
-4. "Bring Us To You" / "Find Us" section — niche-appropriate (catering for food, service-area map for trades, locations for retail)
-5. **FAQ section** (6-8 conversational Q&A pairs) — REQUIRED for AEO compliance; render as visible `<details>/<summary>` HTML AND emit FAQPage JSON-LD via `<JsonLd data={faqGraph(brand.faqs)} />`
-6. Footer CTA strip
+## Output — return ONE JSON object, nothing else
 
-## Hard constraints
+```json
+{
+  "tagline": "3–7 word value proposition. NOT the company name. Sentence case or title case.",
+  "subtitle": "One or two plain sentences expanding the tagline. Concrete, not buzzwords.",
+  "description": "One paragraph (~25–40 words) for the page meta / og:description.",
+  "faqs": [
+    { "q": "A real question a customer would ask", "a": "A direct, factual answer. 1–3 sentences." }
+  ],
+  "content": {
+    "marquee": ["4–6 SHORT phrases (1–3 words each): trust signals, what you offer, where you serve"],
+    "pinned_statement": {
+      "text": "One bold sentence (8–16 words) that frames why this business matters.",
+      "accent_word": "ONE word copied verbatim from text — it gets highlighted"
+    },
+    "value_props": [
+      { "title": "3–6 word benefit headline", "description": "1–2 sentences of plain benefit copy." }
+    ],
+    "process_steps": [
+      { "step": "01", "title": "Short step title", "description": "1–2 sentences." }
+    ],
+    "cta": {
+      "kicker": "Optional 1–3 word eyebrow (or empty string)",
+      "title": "Bold closing line (6–12 words).",
+      "subtitle": "One sentence inviting the next step.",
+      "button": "2–3 word action label, e.g. \"Get started\""
+    }
+  }
+}
+```
 
-- Hero `<h1>` MUST be the value proposition, NOT the company name
-- Every page must emit page-level JSON-LD via the `<JsonLd />` component from `@/components/json-ld`
-- Section eyebrows use `var(--font-display)` italic
-- Colors come from `brand-config.json` `colors{}` — NEVER invent new hex
-- Headlines use `brand.fonts.display`; body uses `brand.fonts.body`
-- If a section asks for a phone-collecting form, it MUST include `<SmsConsent />` (build-blocking — see `scripts/enforce-a2p.mjs`)
-- Hero text overlays must have `text-shadow` for legibility over video
+## Counts (the renderer expects these — out-of-range fields are dropped and the
+template default is kept instead, so HIT them)
 
-## Niche-specific guidance
+- `faqs`: 5–7 entries
+- `marquee`: 4–6 phrases
+- `value_props`: exactly 4
+- `process_steps`: exactly 3 (steps "01", "02", "03")
 
-Apply the rules from `reasoning/{{niche}}.md` (composed into your system prompt). The `Key effect` section there describes the one visual move that signals "this niche done right" — execute it.
+## Rules
 
-## Output format
+- The business facts in the user message are the ONLY source of truth. NEVER
+  invent prices, addresses, phone numbers, hours, stats, awards, or customer
+  reviews. If you don't have a fact, write benefit copy that doesn't assert one.
+- Do NOT write testimonials — the renderer fills those from real reviews only.
+- No em dashes. No marketing buzzwords (streamline, supercharge, leverage,
+  seamless, world-class, next-generation, game-changer). Pick concrete nouns
+  and verbs that describe what the business literally does.
+- `accent_word` MUST appear verbatim (case-insensitive) inside `pinned_statement.text`.
+- Voice: confident, specific, local. Speak to the business's actual customer.
+- Apply the niche grammar block above (if present) for tone and the kinds of
+  benefits/questions that matter in this industry.
 
-Return a complete `src/app/page.tsx` file. Use Server Components (no `"use client"` unless a section truly requires it). Import shared components from `@/components/*`. Import brand config via `import brand from "@/../brand-config.json"`.
-
-End with a JSON-LD block including FAQPage + (if relevant) Menu/Service per the niche taxonomy.
-
-Output the file as a single fenced ```tsx code block. Nothing before or after.
+Return only the JSON object. No prose, no code fence is required (a bare object
+or a ```json fenced block are both accepted).
