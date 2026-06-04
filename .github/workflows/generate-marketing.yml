@@ -88,8 +88,26 @@ jobs:
           GHL_API_TOKEN: ${{ secrets.GHL_API_TOKEN }}
         run: node scripts/ghl-preflight.mjs site.json
 
+      # Niche reasoning substrate. Public repo; checked out into _skill/ inside
+      # the workspace and DELETED right after generation so `git add -A` never
+      # commits it into the client repo. Absent skill dir => generic grammar.
+      - name: Checkout fga-pro-max-skill (niche reasoning substrate)
+        uses: actions/checkout@v4
+        with:
+          repository: fakebranden/fga-pro-max-skill
+          ref: main
+          token: ${{ secrets.CROSS_REPO_PAT }}
+          path: _skill
+          fetch-depth: 1
+
       - name: Generate per-page content (Claude Agent SDK)
-        run: node scripts/generate-pages.mjs site.json
+        env:
+          FGA_PRO_MAX_SKILL_DIR: ${{ github.workspace }}/_skill
+        run: |
+          set -euo pipefail
+          node scripts/generate-pages.mjs site.json
+          # Keep the skill checkout out of the client repo commit.
+          rm -rf "$GITHUB_WORKSPACE/_skill"
 
       - name: Enforce A2P compliance (build-blocking)
         run: node scripts/enforce-a2p.mjs
