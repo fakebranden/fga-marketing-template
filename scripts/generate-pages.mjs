@@ -160,7 +160,23 @@ function extractJson(text) {
 // Every field that fails validation falls back to the existing brand-config
 // value, so a partial/garbled LLM response degrades to the template default
 // instead of breaking the SOTY render.
-const str = (v) => (typeof v === "string" && v.trim() ? v.trim() : null);
+// Normalize generated copy: enforce the no-em-dash brand rule deterministically
+// (the model drifts even when the prompt forbids them), and tidy any artifacts
+// the substitution leaves behind. A space-bounded en/em dash or "--" becomes a
+// comma; numeric ranges like "9-5" are left alone.
+function normalizeCopy(s) {
+  return s
+    .replace(/\s*[—–]\s*/g, ", ")
+    .replace(/\s+--\s+/g, ", ")
+    .replace(/\s*,\s*,\s*/g, ", ")
+    .replace(/\s{2,}/g, " ")
+    .trim();
+}
+const str = (v) => {
+  if (typeof v !== "string") return null;
+  const s = normalizeCopy(v.trim());
+  return s ? s : null;
+};
 
 function sanitize(gen) {
   const prevContent = brand.content ?? {};
@@ -183,12 +199,13 @@ function sanitize(gen) {
   content.marquee = marquee.length >= 4 ? marquee : prevContent.marquee;
 
   const ps = gc.pinned_statement;
-  if (ps && str(ps.text)) {
+  const psText = str(ps?.text);
+  if (psText) {
     const aw = str(ps.accent_word);
     content.pinned_statement = {
-      text: ps.text.trim(),
-      // accent_word must literally appear in the statement (PinnedStatement highlights it).
-      accent_word: aw && ps.text.toLowerCase().includes(aw.toLowerCase()) ? aw : undefined,
+      text: psText,
+      // accent_word must literally appear in the (normalized) statement (PinnedStatement highlights it).
+      accent_word: aw && psText.toLowerCase().includes(aw.toLowerCase()) ? aw : undefined,
     };
   } else {
     content.pinned_statement = prevContent.pinned_statement;
