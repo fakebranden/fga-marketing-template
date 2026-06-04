@@ -199,6 +199,7 @@ body {
   --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
   --margin: clamp(1.25rem, 5vw, 5rem);
   --maxw: 92rem;
+  --gutter: clamp(0.75rem, 2vw, 1.5rem);
 }
 
 .t-display { font-family: var(--font-display); font-weight: 700; font-size: clamp(2.6rem, 8vw, 7.5rem); line-height: 0.95; letter-spacing: 0.005em; text-transform: uppercase; text-wrap: balance; }

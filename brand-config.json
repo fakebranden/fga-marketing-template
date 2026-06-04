@@ -65,6 +65,72 @@
       "a": "Replace this with the canonical pricing answer (or 'request a quote' if variable)."
     }
   ],
+  "content": {
+    "marquee": [
+      "Trusted locally",
+      "Booked online",
+      "Fast response",
+      "Real results",
+      "Family owned"
+    ],
+    "pinned_statement": {
+      "text": "Most businesses are easy to miss. Yours should be impossible to ignore.",
+      "accent_word": "impossible"
+    },
+    "value_props": [
+      {
+        "title": "A brand people remember",
+        "description": "Your business, presented like the leader in your market. Customers trust you before they read a single word."
+      },
+      {
+        "title": "Every inquiry lands with you",
+        "description": "Forms wired straight to your inbox and phone, with compliant texting built in. No lead slips through, day or night."
+      },
+      {
+        "title": "Found on Google and in AI",
+        "description": "Built to rank in search and get quoted by AI assistants, so new customers find you first."
+      },
+      {
+        "title": "Always on, always fast",
+        "description": "Fast, secure hosting that does not go down. You never lose a customer to a slow or broken page."
+      }
+    ],
+    "process_steps": [
+      {
+        "step": "01",
+        "title": "Tell us about your business",
+        "description": "Your services, your area, and what makes you different. We capture it all up front."
+      },
+      {
+        "step": "02",
+        "title": "We build it to perform",
+        "description": "A premium, brand-locked site tuned to your industry and built to turn visitors into booked customers."
+      },
+      {
+        "step": "03",
+        "title": "You get a working machine",
+        "description": "Your site goes live wired to capture leads, text customers, and show up in search from day one."
+      }
+    ],
+    "testimonials": [
+      {
+        "quote": "We finally look like the business we always knew we were. Customers take us seriously now.",
+        "author": "Replace with a real customer",
+        "location": "City, ST"
+      },
+      {
+        "quote": "The booking form drops straight into our system. We were filling the calendar our first week live.",
+        "author": "Replace with a real customer",
+        "location": "City, ST"
+      }
+    ],
+    "cta": {
+      "kicker": "",
+      "title": "Your website should be the center of your business.",
+      "subtitle": "If you want a site that voices your brand, drives engagement, and actually grows revenue, let's talk.",
+      "button": "Get started"
+    }
+  },
   "a2p": {
     "enabled": false,
     "program_description": "Recurring informational and promotional SMS from the legal_entity. Update this string to match the campaign filed with the carrier.",

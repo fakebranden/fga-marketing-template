@@ -15,12 +15,14 @@ import brand from "../../../brand-config.json";
 
 if (typeof window !== "undefined") gsap.registerPlugin(ScrollTrigger);
 
-const BOOKING_URL = "/book";
+// Scroll to the on-page A2P booking form (#book) via Lenis when available.
 function openBooking() {
-  const w = 480, h = 760;
-  const left = Math.max(0, (window.screen.width - w) / 2);
-  const top = Math.max(0, (window.screen.height - h) / 2);
-  window.open(BOOKING_URL, "fga-booking", `width=${w},height=${h},left=${left},top=${top},scrollbars=yes,resizable=yes`);
+  if (typeof window === "undefined") return;
+  const el = document.querySelector("#book");
+  if (!el) return;
+  const lenis = (window as unknown as { __lenis?: { scrollTo: (t: Element, o?: object) => void } }).__lenis;
+  if (lenis) lenis.scrollTo(el as Element, { offset: 0, duration: 1.4 });
+  else (el as HTMLElement).scrollIntoView({ behavior: "smooth" });
 }
 
 const STYLES = `
@@ -156,8 +158,8 @@ export function CinematicFooter() {
                 <MagneticButton as="button" onClick={openBooking} className="footer-glass-pill group flex items-center gap-3 rounded-full px-10 py-5 text-sm font-bold md:text-base" style={{ background: "var(--volt)", color: "#141204", borderColor: "transparent" }}>
                   <CalendarDays className="h-5 w-5" /> Book a call
                 </MagneticButton>
-                <MagneticButton as="a" href="#work" className="footer-glass-pill group flex items-center gap-3 rounded-full px-10 py-5 text-sm font-bold md:text-base" style={{ color: "var(--foreground)" }}>
-                  See the work <ArrowUpRight className="h-5 w-5" />
+                <MagneticButton as="a" href="#value" className="footer-glass-pill group flex items-center gap-3 rounded-full px-10 py-5 text-sm font-bold md:text-base" style={{ color: "var(--foreground)" }}>
+                  What you get <ArrowUpRight className="h-5 w-5" />
                 </MagneticButton>
               </div>
               <div className="mt-2 flex w-full flex-wrap justify-center gap-3 md:gap-5">

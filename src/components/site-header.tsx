@@ -13,6 +13,10 @@ export function SiteHeader() {
     setOpen(false);
   }, [pathname]);
 
+  // The marketing landing ("/") ships its own SOTY chrome (floating Nav +
+  // CinematicFooter). Suppress the document-page header there.
+  if (pathname === "/") return null;
+
   return (
     <header
       className="sticky top-0 z-50 text-white"

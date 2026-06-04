@@ -1,13 +1,18 @@
+"use client";
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 import { FOOTER_LINKS, NAV } from "@/lib/nav";
 import { BrandMark } from "./brand-mark";
 import { Socials } from "./socials";
 import brand from "../../brand-config.json";
 
 export function SiteFooter() {
+  const pathname = usePathname();
   const phone = brand.contact?.phone ?? "";
   const email = brand.contact?.email ?? "";
   const tagline = brand.tagline ?? "";
+  // "/" ships the SOTY CinematicFooter; suppress the document-page footer there.
+  if (pathname === "/") return null;
   return (
     <footer className="text-white" style={{ background: "var(--ink)" }}>
       <div className="mx-auto max-w-[1280px] px-4 sm:px-6 py-14 grid gap-10 md:grid-cols-[1.2fr_1fr_1fr]">

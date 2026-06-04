@@ -28,7 +28,7 @@ export function Wrap({ children, className = "" }: { children: React.ReactNode; 
   return <div className={`wrap ${className}`}>{children}</div>;
 }
 
-const NAV = [["Work", "#work"], ["What you get", "#value"], ["Method", "#method"], ["Plans", "#pricing"]];
+const NAV = [["What you get", "#value"], ["How it works", "#method"], ["Get started", "#book"]];
 
 export function Nav() {
   const [solid, setSolid] = useState(false);
