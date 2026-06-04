@@ -8,6 +8,7 @@ import { Suspense, useRef } from "react";
 import dynamic from "next/dynamic";
 import { motion, useScroll, useTransform, useReducedMotion } from "framer-motion";
 import { MagneticButton } from "./editorial";
+import brand from "../../../brand-config.json";
 
 const Canvas = dynamic(() => import("@react-three/fiber").then((m) => m.Canvas), { ssr: false });
 
@@ -39,20 +40,20 @@ export function WebGLHero() {
 
       {/* top kicker */}
       <div className="absolute inset-x-0 top-0 z-10 pt-28">
-        <div className="wrap"><p className="t-mono" style={{ color: "var(--ink-soft)" }}>Flying Goat Agency &middot; Tampa, FL</p></div>
+        <div className="wrap"><p className="t-mono" style={{ color: "var(--ink-soft)" }}>{brand.company}{brand.service_areas?.[0] ? ` · ${brand.service_areas[0]}` : ""}</p></div>
       </div>
 
-      {/* bottom-anchored headline + CTAs */}
+      {/* bottom-anchored headline + CTAs (content overwritten per-client by the Agent SDK) */}
       <motion.div style={reduce ? undefined : { y: textY, opacity: fade }} className="absolute inset-x-0 bottom-0 z-10 pb-[clamp(2.5rem,6vh,4.5rem)]">
         <div className="wrap">
           <h1 className="t-display" style={{ fontSize: "clamp(2.6rem, 8vw, 7rem)", lineHeight: 0.9 }}>
-            Websites your <em className="t-accent">business</em> runs on.
+            {brand.tagline}
           </h1>
           <div className="mt-7 flex flex-col gap-6 md:flex-row md:items-end md:justify-between">
-            <p className="t-lead" style={{ color: "var(--ink-soft)" }}>Brand-locked sites for local businesses, wired to your CRM and built to turn visitors into booked jobs.</p>
+            <p className="t-lead" style={{ color: "var(--ink-soft)" }}>{brand.subtitle}</p>
             <div className="flex shrink-0 flex-wrap items-center gap-3">
-              <MagneticButton href="#work" className="btn btn-primary">See the work</MagneticButton>
-              <MagneticButton href="#pricing" className="btn btn-ghost">Plans &amp; pricing</MagneticButton>
+              <MagneticButton href="#work" className="btn btn-primary">Get started</MagneticButton>
+              <MagneticButton href="#book" className="btn btn-ghost">Book now</MagneticButton>
             </div>
           </div>
         </div>

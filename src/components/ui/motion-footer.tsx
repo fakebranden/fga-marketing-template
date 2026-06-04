@@ -11,10 +11,11 @@ import { gsap } from "gsap";
 import { ScrollTrigger } from "gsap/ScrollTrigger";
 import { cn } from "@/lib/utils";
 import { CalendarDays, ArrowUpRight } from "lucide-react";
+import brand from "../../../brand-config.json";
 
 if (typeof window !== "undefined") gsap.registerPlugin(ScrollTrigger);
 
-const BOOKING_URL = "https://link.flyinggoatagency.com/widget/booking/tTXkHHaXJIHbkra8NeMY";
+const BOOKING_URL = "/book";
 function openBooking() {
   const w = 480, h = 760;
   const left = Math.max(0, (window.screen.width - w) / 2);
@@ -108,11 +109,11 @@ MagneticButton.displayName = "FooterMagneticButton";
 
 const MarqueeItem = () => (
   <div className="flex items-center space-x-10 px-6 font-[family-name:var(--font-mono)] uppercase">
-    <span>Brand-locked design</span> <span style={{ color: "var(--volt)" }}>✦</span>
-    <span>Wired to your CRM</span> <span style={{ color: "var(--volt)" }}>✦</span>
-    <span>Compliant SMS</span> <span style={{ color: "var(--volt)" }}>✦</span>
+    <span>Premium design</span> <span style={{ color: "var(--volt)" }}>✦</span>
+    <span>Mobile-first</span> <span style={{ color: "var(--volt)" }}>✦</span>
+    <span>Book online</span> <span style={{ color: "var(--volt)" }}>✦</span>
     <span>Built to convert</span> <span style={{ color: "var(--volt)" }}>✦</span>
-    <span>Found on Google + AI</span> <span style={{ color: "var(--volt)" }}>✦</span>
+    <span>Found on Google</span> <span style={{ color: "var(--volt)" }}>✦</span>
   </div>
 );
 
@@ -138,7 +139,7 @@ export function CinematicFooter() {
         <footer className="cinematic-footer-wrapper fixed bottom-0 left-0 flex h-screen w-full flex-col justify-between overflow-hidden" style={{ background: "var(--background)", color: "var(--foreground)" }}>
           <div className="footer-aurora pointer-events-none absolute left-1/2 top-1/2 z-0 h-[60vh] w-[80vw] -translate-x-1/2 -translate-y-1/2 animate-footer-breathe rounded-[50%] blur-[80px]" />
           <div className="footer-bg-grid pointer-events-none absolute inset-0 z-0" />
-          <div ref={giantTextRef} className="footer-giant-bg-text pointer-events-none absolute -bottom-[4vh] left-1/2 z-0 -translate-x-1/2 select-none whitespace-nowrap">FLYING GOAT</div>
+          <div ref={giantTextRef} className="footer-giant-bg-text pointer-events-none absolute -bottom-[4vh] left-1/2 z-0 -translate-x-1/2 select-none whitespace-nowrap">{brand.company}</div>
 
           {/* marquee */}
           <div className="absolute left-0 top-12 z-10 w-full -rotate-2 scale-110 overflow-hidden border-y py-4 shadow-2xl" style={{ borderColor: "var(--line)", background: "color-mix(in oklch, var(--background) 60%, transparent)", backdropFilter: "blur(8px)" }}>
@@ -160,7 +161,7 @@ export function CinematicFooter() {
                 </MagneticButton>
               </div>
               <div className="mt-2 flex w-full flex-wrap justify-center gap-3 md:gap-5">
-                {[["Instagram", "https://flyinggoatagency.com"], ["LinkedIn", "https://flyinggoatagency.com"], ["flyinggoatagency.com", "https://flyinggoatagency.com"]].map(([l, h]) => (
+                {([["Instagram", brand.socials?.instagram || brand.canonical_url], ["Facebook", brand.socials?.facebook || brand.canonical_url], ["Website", brand.canonical_url]] as [string, string][]).filter(([, h]) => h).map(([l, h]) => (
                   <MagneticButton key={l} as="a" href={h} target="_blank" rel="noopener noreferrer" className="footer-glass-pill rounded-full px-6 py-3 text-xs font-medium md:text-sm" style={{ color: "var(--ink-soft)" }}>{l}</MagneticButton>
                 ))}
               </div>
@@ -169,8 +170,8 @@ export function CinematicFooter() {
 
           {/* bottom bar */}
           <div className="relative z-20 flex w-full flex-col items-center justify-between gap-4 px-6 pb-8 md:flex-row md:px-12">
-            <div className="font-[family-name:var(--font-mono)] text-[10px] font-semibold uppercase tracking-widest md:text-xs" style={{ color: "var(--ink-faint)" }}>© 2026 Flying Goat Agency, Tampa, FL</div>
-            <div className="font-[family-name:var(--font-mono)] text-[10px] font-semibold uppercase tracking-widest md:text-xs" style={{ color: "var(--ink-faint)" }}>Websites your business runs on</div>
+            <div className="font-[family-name:var(--font-mono)] text-[10px] font-semibold uppercase tracking-widest md:text-xs" style={{ color: "var(--ink-faint)" }}>{`© 2026 ${brand.company}`}</div>
+            <div className="font-[family-name:var(--font-mono)] text-[10px] font-semibold uppercase tracking-widest md:text-xs" style={{ color: "var(--ink-faint)" }}>{brand.tagline}</div>
             <MagneticButton as="button" onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })} className="footer-glass-pill group flex h-12 w-12 items-center justify-center rounded-full" style={{ color: "var(--ink-soft)" }} aria-label="Back to top">
               <svg className="h-5 w-5 transform transition-transform duration-300 group-hover:-translate-y-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 10l7-7m0 0l7 7m-7-7v18" /></svg>
             </MagneticButton>

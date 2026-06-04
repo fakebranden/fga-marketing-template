@@ -12,6 +12,7 @@ import { motion, useScroll, useTransform, useReducedMotion, type MotionValue } f
 import { ArrowUpRight } from "lucide-react";
 import { MagneticButton, EASE } from "./editorial";
 import { ContainerScroll } from "@/components/ui/container-scroll-animation";
+import brand from "../../../brand-config.json";
 
 /* ───────── VideoHero ───────── */
 export function VideoHero() {
@@ -34,7 +35,7 @@ export function VideoHero() {
 
       <motion.div style={reduce ? undefined : { opacity: fade }} className="relative z-10 flex h-full flex-col justify-end pb-[clamp(3rem,8vh,6rem)]">
         <div className="wrap">
-          <div className="overflow-hidden"><motion.p className="t-mono mb-6" {...reveal(0.1)}>Flying Goat Agency &middot; Tampa, FL</motion.p></div>
+          <div className="overflow-hidden"><motion.p className="t-mono mb-6" {...reveal(0.1)}>{brand.company}{brand.service_areas?.[0] ? ` · ${brand.service_areas[0]}` : ""}</motion.p></div>
           <h1 className="t-display max-w-[16ch]">
             <span className="block overflow-hidden"><motion.span className="block" {...reveal(0.18)}>Websites your</motion.span></span>
             <span className="block overflow-hidden"><motion.span className="block" {...reveal(0.26)}><em className="t-accent">business</em> runs on.</motion.span></span>
@@ -64,7 +65,7 @@ export function ContainerScrollHero() {
       <ContainerScroll
         titleComponent={
           <div className="px-4">
-            <p className="t-mono mb-6" style={{ color: "var(--volt)" }}>The Flying Goat way</p>
+            <p className="t-mono mb-6" style={{ color: "var(--volt)" }}>How it works</p>
             <h2 className="t-h2 mx-auto max-w-[16ch]">Your brand, in motion.</h2>
             <p className="t-lead mx-auto mt-6" style={{ color: "var(--ink-soft)" }}>Every build is art-directed, animated, and wired to convert. This is the standard your business gets.</p>
           </div>

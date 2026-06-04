@@ -10,6 +10,7 @@ import {
   motion, useInView, useScroll, useSpring, useTransform,
   useMotionValue, useReducedMotion,
 } from "framer-motion";
+import brand from "../../../brand-config.json";
 
 export const EASE = [0.23, 1, 0.32, 1] as const; // Emil strong ease-out
 
@@ -49,16 +50,15 @@ export function Nav() {
     >
       <div className="flex items-center justify-between gap-6">
         <a href="#top" className="flex items-center gap-2.5" data-magnetic onClick={(e) => { e.preventDefault(); scrollToAnchor("#top"); }}>
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src="/showcase/brand/fga-mark.png" alt="Flying Goat Agency" className="h-8 w-8 md:h-9 md:w-9" />
-          <span className="font-[family-name:var(--font-display)] text-[0.95rem] uppercase tracking-[0.04em]" style={{ color: "var(--ink)" }}>Flying Goat</span>
+          <span className="h-2.5 w-2.5 rounded-full" style={{ background: "var(--volt)" }} aria-hidden />
+          <span className="font-[family-name:var(--font-display)] text-[0.95rem] uppercase tracking-[0.04em]" style={{ color: "var(--ink)" }}>{brand.company}</span>
         </a>
         <nav className="hidden items-center gap-7 md:flex">
           {NAV.map(([l, h]) => (
             <a key={h} href={h} className="sc-link t-mono" onClick={(e) => { e.preventDefault(); scrollToAnchor(h); }}>{l}</a>
           ))}
         </nav>
-        <MagneticButton href="https://flyinggoatagency.com" className="btn btn-primary">Start a build</MagneticButton>
+        <MagneticButton href="#book" className="btn btn-primary">Book now</MagneticButton>
       </div>
     </header>
   );

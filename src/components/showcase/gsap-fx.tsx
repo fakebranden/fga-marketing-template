@@ -10,6 +10,7 @@ import { useRef, useState } from "react";
 import { gsap } from "gsap";
 import { ScrollTrigger } from "gsap/ScrollTrigger";
 import { useGSAP } from "@gsap/react";
+import brand from "../../../brand-config.json";
 
 gsap.registerPlugin(ScrollTrigger, useGSAP);
 
@@ -29,8 +30,7 @@ export function IntroReveal() {
   if (done) return null;
   return (
     <div ref={ref} className="fixed inset-0 z-[200] flex flex-col items-center justify-center" style={{ background: "#08080a" }}>
-      {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img src="/showcase/brand/fga-mark.png" alt="Flying Goat Agency" className="intro-mark w-24 md:w-32" />
+      <div className="intro-mark font-[family-name:var(--font-display)] uppercase tracking-[0.04em] text-center" style={{ color: "#f4f2ec", fontSize: "clamp(1.6rem,6vw,2.8rem)", lineHeight: 1 }}>{brand.company}</div>
       <div className="intro-bar mt-8 h-px w-40 overflow-hidden" style={{ background: "rgba(244,242,236,0.16)" }}>
         <div className="intro-bar-fill h-full w-full origin-left" style={{ background: "var(--volt)", transform: "scaleX(0)" }} />
       </div>
