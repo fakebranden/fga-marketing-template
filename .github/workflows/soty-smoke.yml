@@ -1,0 +1,89 @@
+name: SOTY generator smoke test
+
+# Self-contained, on-demand validation of the content-population generator with a
+# REAL Claude call + the real niche-reasoning substrate, in the real CI runtime.
+#
+# Creates NO client repo, NO Vercel deploy, and writes NOTHING back to the hub
+# (HUB_RPC_SECRET is intentionally not passed, so the driver's hub PATCH no-ops).
+# It runs the same gate sequence the live pipeline uses — generate -> A2P ->
+# build — against a committed test site.json, then uploads the generated
+# brand-config.json as an artifact for inspection. Triggered manually only.
+
+on:
+  workflow_dispatch:
+    inputs:
+      niche:
+        description: "Niche slug for the smoke client (must match reasoning/<niche>.md)"
+        required: false
+        type: string
+        default: "mobile-food-truck"
+
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout template (this branch)
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+
+      - name: Checkout fga-pro-max-skill (niche reasoning)
+        uses: actions/checkout@v4
+        with:
+          repository: fakebranden/fga-pro-max-skill
+          ref: main
+          token: ${{ secrets.CROSS_REPO_PAT }}
+          path: _skill
+          fetch-depth: 1
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Write test site.json
+        run: |
+          cat > site.json <<JSON
+          {
+            "slug": "soty-smoke",
+            "niche": "${{ inputs.niche }}",
+            "vertical": "${{ inputs.niche }}",
+            "notes": "Smoke-test business for the SOTY generator. A local mobile espresso and cold brew truck serving weddings, corporate events, and offices across Tampa Bay.",
+            "brand": {
+              "company": "Smoke Test Coffee Co.",
+              "legal_entity": "Smoke Test Coffee LLC",
+              "dba": "Smoke Test Coffee Co.",
+              "canonical_url": "https://smoke-test.example.com",
+              "service_areas": ["Tampa", "St. Petersburg", "Clearwater"]
+            }
+          }
+          JSON
+          echo "::group::site.json"; cat site.json; echo "::endgroup::"
+
+      - name: Generate content (REAL Claude call)
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          FGA_PRO_MAX_SKILL_DIR: ${{ github.workspace }}/_skill
+          # HUB_RPC_SECRET intentionally omitted -> hub PATCH callbacks no-op.
+        run: |
+          set -euo pipefail
+          node scripts/generate-pages.mjs site.json
+          rm -rf "$GITHUB_WORKSPACE/_skill"
+          echo "::group::generated brand-config.json"; cat brand-config.json; echo "::endgroup::"
+
+      - name: Enforce A2P compliance (build-blocking)
+        run: node scripts/enforce-a2p.mjs
+
+      - name: Build (production smoke)
+        run: npm run build
+
+      - name: Upload generated brand-config
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: smoke-brand-config
+          path: brand-config.json
+          retention-days: 7
