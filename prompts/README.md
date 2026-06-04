@@ -1,58 +1,58 @@
-# Per-page Prompts
+# Prompts
 
-Each `.md` in this directory is a **page-level generation contract** for the Claude Agent SDK driver (`scripts/generate-pages.mjs`).
+> **Architecture note (Phase 5e, SOTY model).** The site layout is now a FIXED,
+> hand-crafted SOTY composition (`src/app/page.tsx` server shell +
+> `src/components/showcase/SotyHome.tsx`). The driver `scripts/generate-pages.mjs`
+> **no longer generates page TSX from scratch.** It runs ONE Claude call against
+> `home.md` to produce a strict JSON **content** object and merges it into
+> `brand-config.json`; the fixed composition renders it. The driver writes
+> `brand-config.json` only — it never touches `src/app/**.tsx`.
+>
+> Therefore `about.md`, `book.md`, `terms.md`, `privacy.md` are **dormant** —
+> those pages ship as template defaults (already brand-config-driven). `/terms`
+> and `/privacy` carry carrier-locked SMS prose and must NEVER be regenerated
+> (see AGENTS.md). Keep the dormant prompts for reference / a future per-page
+> pass, but only `home.md` is live.
 
-## Contract
+## `home.md` — the live content contract
 
-Every prompt file:
-- Starts with `# Per-page contract: <PAGE> (<route>)`
-- Lists required sections (always-render, even if minimal)
-- Lists hard constraints (build-blocking — AEO/A2P-critical)
-- Tells Claude what output format to emit (always: a single fenced ```tsx code block)
-
-## How they're composed at generate-time
-
-The driver composes Claude's system prompt as:
-
-```
-{fga-pro-max skill block: tokens + reasoning + recipe + AEO + A2P}
-{this page's prompt template}
-```
-
-…and the user message is:
+`home.md` tells Claude to return ONE JSON object filling the SOTY composition:
 
 ```
-brand-config.json content:
-{the resolved brand-config.json for this client}
-
-GENERATE THE PAGE.
+tagline · subtitle · description · faqs[] ·
+content { marquee[] · pinned_statement{text,accent_word} · value_props[] ·
+          process_steps[] · cta{kicker,title,subtitle,button} }
 ```
 
-Claude returns one TSX file. The driver writes it to `src/app/<route>/page.tsx`.
+The driver's `sanitize()` validates + clamps every field; an invalid field falls
+back to the existing `brand-config.json` value, so a garbled response degrades to
+the template default instead of breaking the render. Testimonials are NEVER
+generated — they come from the hub site record only.
 
-## Variable interpolation
+## How it's composed at generate-time
 
-Tokens like `{{business_name}}` and `{{niche}}` are pre-substituted by the driver before the prompt goes to Claude — Claude sees concrete values.
+The driver builds Claude's system prompt as:
 
-## Niche-conditional generation
+```
+{fga-pro-max niche grammar — reasoning/<niche>.md, if the skill dir is present}
+{home.md}
+```
 
-The driver consults `reasoning/_taxonomy.json` for the niche subtype. Some pages are only generated for some niches:
+…and the user message is the business facts (company, niche, service areas,
+contact, hub notes) as the ONLY source of truth. Claude returns the JSON object.
 
-- `home.md` — always
-- `about.md` — always
-- `terms.md` — always
-- `privacy.md` — always
-- `book.md` — when `brand.has_booking !== false` (default ON for most niches; opt-out via brand kit)
-- `menu.md` — when niche ∈ `{ mobile-food-truck, restaurant-bar }` (future)
-- `services.md` — when niche ∈ `{ plumber-hvac, med-spa-aesthetic, auto-detail-mobile, barber-salon }` (future)
-- `gallery.md` — when `brand.has_gallery === true` (future, for niches w/ before/after — med-spa, auto-detail)
+## Local testing (no API key)
 
-## Adding a new prompt
+```
+GENERATE_FIXTURE=/path/to/response.json node scripts/generate-pages.mjs site.json
+```
 
-1. Write the `.md` file with the contract template above
-2. Add it to the `PROMPTS` registry in `scripts/generate-pages.mjs`
-3. Add it to this README's niche-conditional table
+`GENERATE_FIXTURE` short-circuits the API call and reads a canned JSON response —
+use it to exercise the merge/validation path and CI smoke without spending tokens.
 
-## Token budget
+## Niche-specific extra pages (future)
 
-Each prompt should stay under ~1,500 tokens. The driver pre-trims if any exceeds.
+`menu` (mobile-food-truck, restaurant-bar), `services` (plumber-hvac,
+med-spa-aesthetic, auto-detail-mobile, barber-salon), `gallery` (before/after
+niches). Not wired yet — they would extend either the SOTY content schema or add
+dedicated route pages.

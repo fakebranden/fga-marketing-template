@@ -1,5 +1,13 @@
 # AGENTS.md — Per-page prompt templates for the Generate-Site pipeline
 
+> **OUTDATED for the home page (Phase 5e SOTY model).** The driver no longer
+> generates `src/app/page.tsx` from scratch. The home is a FIXED SOTY composition
+> filled by a JSON **content** block (see `prompts/README.md` + `prompts/home.md`).
+> The driver writes `brand-config.json` only and never touches `src/app/**.tsx`.
+> The `/about`, `/book`, `/thanks` TSX-generation sections below are **dormant**
+> (those ship as template defaults). The `/terms` + `/privacy` DO-NOT-REGENERATE
+> locks below are still authoritative and enforced by construction.
+
 This file is consumed by `scripts/generate-pages.mjs` (Phase 5e) when the
 Claude Agent SDK regenerates a marketing site per client. Each page has one
 prompt section below. The Generate-Site workflow:
