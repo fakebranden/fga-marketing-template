@@ -7,6 +7,7 @@ import { describe, expect, it } from "vitest";
 import {
   brandColorVars,
   brandFontVars,
+  brandLayoutVars,
   brandStyleVars,
   fontsAreCustom,
   googleFontsHref,
@@ -76,6 +77,17 @@ describe("googleFontsHref", () => {
   });
 });
 
+describe("brandLayoutVars — URL inspiration (layout only)", () => {
+  it("emits only --section-scale and --maxw", () => {
+    const vars = brandLayoutVars({ sectionScale: 1.25, maxWidthRem: 64 });
+    expect(vars).toEqual({ "--section-scale": "1.25", "--maxw": "64rem" });
+  });
+  it("ignores non-numeric / missing fields", () => {
+    expect(brandLayoutVars({ sectionScale: "big" as unknown as number })).toEqual({});
+    expect(brandLayoutVars(null)).toEqual({});
+  });
+});
+
 describe("brandStyleVars", () => {
   it("merges color vars and custom font vars", () => {
     const vars = brandStyleVars({
@@ -85,6 +97,11 @@ describe("brandStyleVars", () => {
     expect(vars["--primary"]).toBe("#252525");
     expect(vars["--accent"]).toBe("#f6eb1e");
     expect(vars["--font-display"]).toMatch(/Anton/);
+  });
+  it("includes URL-inspired layout vars", () => {
+    const vars = brandStyleVars({ colors: { primary: "#252525" }, layout: { sectionScale: 0.8, maxWidthRem: 96 } });
+    expect(vars["--section-scale"]).toBe("0.8");
+    expect(vars["--maxw"]).toBe("96rem");
   });
   it("omits font vars for the default pairing", () => {
     const vars = brandStyleVars({ colors: { primary: "#252525" }, fonts: { display: "Fraunces", body: "Inter" } });

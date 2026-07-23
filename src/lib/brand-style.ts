@@ -109,11 +109,36 @@ export function googleFontsHref(fonts: BrandFonts): string | null {
   return `https://fonts.googleapis.com/css2?${params.join("&")}&display=swap`;
 }
 
+type BrandLayout =
+  | { sectionScale?: unknown; maxWidthRem?: unknown }
+  | undefined
+  | null;
+
+// Layout vars from URL inspiration (design engine Increment 3). ANTI-MIMICRY:
+// a reference URL contributes STRUCTURE ONLY — never palette or type — so the
+// only vars we ever emit from it are the section-padding scale and the content
+// max-width. There is deliberately nothing else to return here.
+export function brandLayoutVars(layout: BrandLayout): Record<string, string> {
+  const out: Record<string, string> = {};
+  if (!layout || typeof layout !== "object") return out;
+  const scale = layout.sectionScale;
+  if (typeof scale === "number" && Number.isFinite(scale)) out["--section-scale"] = String(scale);
+  const maxw = layout.maxWidthRem;
+  if (typeof maxw === "number" && Number.isFinite(maxw)) out["--maxw"] = `${maxw}rem`;
+  return out;
+}
+
 // Convenience: the full inline style object for <html> — color vars + custom
-// font vars merged. Typed loosely (custom properties are not in CSSProperties).
+// font vars + URL-inspired layout vars merged. Typed loosely (custom properties
+// are not in CSSProperties).
 export function brandStyleVars(brand: {
   colors?: BrandColors;
   fonts?: BrandFonts;
+  layout?: BrandLayout;
 }): Record<string, string> {
-  return { ...brandColorVars(brand?.colors), ...brandFontVars(brand?.fonts) };
+  return {
+    ...brandColorVars(brand?.colors),
+    ...brandFontVars(brand?.fonts),
+    ...brandLayoutVars(brand?.layout),
+  };
 }

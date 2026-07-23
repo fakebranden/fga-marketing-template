@@ -40,6 +40,8 @@ import { readFileSync, writeFileSync, existsSync } from "node:fs";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { resolveTokens } from "./lib/resolve-tokens.mjs";
+import { extractInspiration } from "./extract-inspiration.mjs";
+import { inspirationToLayoutVars } from "./lib/inspiration.mjs";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(HERE, "..");
@@ -100,6 +102,30 @@ if (site.reference_style) {
       `surface=${resolved.colors.surface} ink=${resolved.colors.ink} accent=${resolved.colors.accent} ` +
       `display=${resolved.fonts.display || "(seed default)"} radius=${resolved.radius || "(default)"}`,
     );
+  }
+}
+
+// ── Inspiration (design engine Increment 3 — URL analysis, LAYOUT/MOTION ONLY)
+// When the operator supplies a reference_style_url, analyze its STRUCTURE only —
+// section spacing rhythm + content measure + motion intensity — and store it on
+// brand.layout. Per anti-mimicry (spec §7 I2) this NEVER contributes palette or
+// type: the resolver only reads geometry/motion, and only --section-scale +
+// --maxw ever reach the render. Fully fail-safe: any extraction failure leaves
+// brand.layout unset and the build proceeds on seed + kit tokens alone.
+if (site.reference_style_url) {
+  try {
+    const inspiration = await extractInspiration(site.reference_style_url);
+    if (inspiration) {
+      brand.layout = inspiration;
+      const vars = inspirationToLayoutVars(inspiration);
+      console.log(
+        `[generate-pages] inspiration from ${site.reference_style_url}: ` +
+        `density=${inspiration.density} measure=${inspiration.measure} motion=${inspiration.motion} ` +
+        `(vars ${JSON.stringify(vars)}) — layout only, palette/type untouched`,
+      );
+    }
+  } catch (e) {
+    console.warn(`[generate-pages] inspiration skipped: ${e.message}`);
   }
 }
 

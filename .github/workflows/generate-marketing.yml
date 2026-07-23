@@ -100,6 +100,21 @@ jobs:
           path: _skill
           fetch-depth: 1
 
+      # URL inspiration (design engine Increment 3) analyzes a reference site's
+      # LAYOUT/MOTION only and needs a real browser — but only when the operator
+      # supplied a reference_style_url. Gate the (heavy) Chromium install on that
+      # so normal builds are unaffected. generate-pages skips the analysis
+      # gracefully when the browser is absent, so this step never blocks a build.
+      - name: Install Chromium for URL inspiration (only when reference_style_url is set)
+        run: |
+          set -euo pipefail
+          if [ -n "$(jq -r '.reference_style_url // empty' site.json)" ]; then
+            echo "reference_style_url set — installing Chromium for layout/motion analysis"
+            npx playwright install --with-deps chromium
+          else
+            echo "no reference_style_url — skipping Chromium install"
+          fi
+
       - name: Generate per-page content (Claude Agent SDK)
         env:
           FGA_PRO_MAX_SKILL_DIR: ${{ github.workspace }}/_skill
