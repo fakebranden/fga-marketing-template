@@ -133,8 +133,37 @@ jobs:
             git push origin HEAD:main
           fi
 
+      - name: Fetch GHL creds for Vercel injection (RPC-gated; 204 = no CRM yet)
+        run: |
+          set -euo pipefail
+          # Pull the client's GHL location id + token from the hub's RPC-gated
+          # endpoint. 204 means no CRM is wired yet — skip cleanly. On 200, mask
+          # the token in the logs and export both so trigger-vercel-deploy.mjs
+          # sets them as project env before the first deploy.
+          CODE=$(curl -sS -o ghl-creds.json -w "%{http_code}" \
+            -H "Authorization: Bearer ${HUB_RPC_SECRET}" \
+            "${HUB_BASE}/api/employee-hub/marketing-site/${SITE_SLUG}/ghl-creds" || echo "000")
+          if [ "$CODE" = "200" ]; then
+            LOC=$(jq -r '.location_id // empty' ghl-creds.json)
+            TOK=$(jq -r '.token // empty' ghl-creds.json)
+            if [ -n "$TOK" ]; then echo "::add-mask::$TOK"; fi
+            {
+              echo "GHL_LOCATION_ID=$LOC"
+              echo "GHL_LOCATION_TOKEN=$TOK"
+            } >> "$GITHUB_ENV"
+            echo "GHL creds fetched for ${SITE_SLUG} (location $LOC)"
+          else
+            echo "No CRM creds to inject (HTTP $CODE)"
+          fi
+          rm -f ghl-creds.json
+
       - name: Deploy to Vercel (production)
         id: deploy
+        env:
+          # Lead-sink alert channel (FGA-internal) so a CRM outage on the live
+          # site still reaches a human, per spec §7 G7. Optional; skipped if unset.
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
         run: node scripts/trigger-vercel-deploy.mjs site.json
 
       - name: Callback hub

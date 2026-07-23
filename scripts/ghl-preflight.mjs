@@ -75,7 +75,11 @@ if (eff.niche === "med-spa-aesthetic" && eff.legal_review_passed !== true) {
 }
 
 // GHL connectivity (best-effort).
-const token = process.env.GHL_API_TOKEN || process.env.GHL_FGA_TOKEN || "";
+// GHL_LOCATION_TOKEN first: it is the same credential src/lib/ghl.ts uses at
+// runtime, so preflight validates the token that will actually write the lead.
+// The other two are legacy aliases kept so existing setups keep working.
+const token =
+  process.env.GHL_LOCATION_TOKEN || process.env.GHL_API_TOKEN || process.env.GHL_FGA_TOKEN || "";
 if (ghl.location_id) {
   if (!token) {
     warns.push(`ghl.location_id set (${ghl.location_id}) but no GHL token at build time — booking routing verified at runtime only.`);

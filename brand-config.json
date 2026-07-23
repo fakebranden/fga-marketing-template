@@ -152,8 +152,15 @@
       "Outside service area (travel quote)"
     ],
     "chat_widget_id": "",
+    "form_mode": "native",
+    "form_id": "",
+    "calendar_mode": "native",
+    "calendar_id": "",
     "tags": {
-      "default": ["Website Booking", "Website Lead"],
+      "default": [
+        "Website Booking",
+        "Website Lead"
+      ],
       "sms_opt_in": "SMS Opt-In"
     }
   }

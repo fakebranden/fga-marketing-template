@@ -22,7 +22,7 @@
  *
  * Project name convention: <slug>-marketing (matches MarketingSite.vercel_project).
  */
-import { readFileSync, writeFileSync, appendFileSync, existsSync } from "node:fs";
+import { readFileSync, writeFileSync, appendFileSync, existsSync, rmSync } from "node:fs";
 import { execSync } from "node:child_process";
 
 const sitePath = process.argv[2] || "site.json";
@@ -97,6 +97,45 @@ try {
       `"https://api.vercel.com/v9/projects/${projectId}${teamQ}"`,
     { stdio: ["ignore", "ignore", "inherit"], env: { ...process.env, VTK: TOKEN } },
   );
+
+  // 3b. Inject runtime env vars onto the project BEFORE the first deploy, so the
+  // live site's /api/book can write leads to the client's GHL sub-account and
+  // alert on failure. Values arrive from the workflow (fetched from the hub's
+  // RPC-gated ghl-creds endpoint + template secrets). Only non-empty ones are
+  // set. upsert=true makes this idempotent across re-deploys. Each value is piped
+  // via a temp file + @file so the secret never appears in a command string.
+  const RUNTIME_ENV_KEYS = [
+    "GHL_LOCATION_ID",
+    "GHL_LOCATION_TOKEN",
+    "TELEGRAM_BOT_TOKEN",
+    "TELEGRAM_CHAT_ID",
+  ];
+  const setProjectEnv = (key, value) => {
+    if (!value) return;
+    const payload = JSON.stringify({
+      key,
+      value,
+      type: "encrypted",
+      target: ["production", "preview", "development"],
+    });
+    const tmp = `.env-inject-${key}.json`;
+    writeFileSync(tmp, payload);
+    try {
+      execSync(
+        `curl -fsS -X POST ` +
+          `-H "Authorization: Bearer $VTK" -H "Content-Type: application/json" ` +
+          `--data-binary @${tmp} ` +
+          `"https://api.vercel.com/v10/projects/${projectId}/env?upsert=true${ORG ? `&teamId=${ORG}` : ""}"`,
+        { stdio: ["ignore", "ignore", "inherit"], env: { ...process.env, VTK: TOKEN } },
+      );
+      console.log(`[trigger-vercel-deploy] env set: ${key}`);
+    } catch {
+      console.warn(`[trigger-vercel-deploy] env set failed (non-fatal): ${key}`);
+    } finally {
+      try { rmSync(tmp); } catch { /* ignore */ }
+    }
+  };
+  for (const key of RUNTIME_ENV_KEYS) setProjectEnv(key, process.env[key] || "");
 
   // 4. deploy from source (no --prebuilt; Vercel builds Next.js server-side).
   // VERCEL_ORG_ID in env REQUIRES VERCEL_PROJECT_ID too — set it from the link.

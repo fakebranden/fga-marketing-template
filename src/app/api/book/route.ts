@@ -8,16 +8,20 @@
 //      (event_date, event_type, guest_count, service_area, event_address,
 //      message) PLUS a `--- SMS Opt-In ---` audit-trail block.
 //   4. Tag with default + niche-specific + SMS Opt-In (if checkbox) tags.
-//   5. Redirect the browser to /thanks regardless of GHL outcome (the
-//      submission body is always logged to Vercel runtime logs as a backstop
-//      so we never silently drop a request).
+//   5. Deliver the lead to a human via every configured sink on EVERY
+//      submission (spec §7 G7), which is what makes it survive a CRM outage.
+//   6. Redirect to /thanks ONLY when the lead reached the CRM or a sink.
+//      If both failed, redirect to /thanks?status=call, which tells the visitor
+//      plainly that it did not go through and puts the phone number in front of
+//      them. Never show a confirmation for a lead we did not capture.
 //
-// If GHL env vars are missing, the form still "succeeds" from the user's
-// perspective and the full submission is dumped to console.error so the
-// operator can recover it from Vercel logs until the token is wired up.
+// Spec §7 G2: never lose a lead to a 500. Vercel logs are a backstop for
+// forensics, NOT durability, because nobody reads them in time to call someone
+// back. See src/lib/lead-sink.ts for why there is no KV/Blob dependency here.
 
 import { NextResponse } from "next/server";
 import { addNote, addTags, upsertContact, type GhlCustomFieldValue } from "@/lib/ghl";
+import { deliverLead, withRetry, type LeadPayload } from "@/lib/lead-sink";
 import brand from "../../../../brand-config.json";
 
 export const runtime = "nodejs";
@@ -135,42 +139,70 @@ export async function POST(req: Request) {
   }
   const customFields = buildCustomFields(fields);
 
-  // Always log the submission first — backstop so a GHL outage never loses a lead.
+  // Console is a backstop only. It is NOT durability: nobody watches Vercel logs
+  // in time to call an injured person back. Real durability is deliverLead().
   console.log("[booking] form submission", { name, email, smsConsent, fields });
 
-  try {
-    const upsert = await upsertContact({
-      firstName,
-      lastName,
-      email,
-      phone: fields.phone || undefined,
-      source: `Website Booking Form — ${brand.company}`,
-      tags,
-      customFields,
-    });
+  const leadPayload: LeadPayload = {
+    name,
+    email,
+    phone: fields.phone || undefined,
+    smsConsent,
+    fields,
+    sourceUrl: consentMeta.sourceUrl,
+    submittedAt: consentMeta.timestamp,
+  };
 
-    if (upsert) {
-      await Promise.allSettled([
-        addNote(upsert.contactId, buildNote(fields, smsConsent, consentMeta)),
-        addTags(upsert.contactId, tags),
-      ]);
-      console.log(
-        "[booking] GHL upsert ok",
-        { contactId: upsert.contactId, locationId: upsert.locationId },
-      );
-    } else {
-      console.error("[booking] GHL upsert returned null — submission only in Vercel logs:", {
-        name,
+  // 1. CRM write, retried. upsertContact resolves null on failure rather than
+  //    throwing, so isFailure must catch that explicitly or retries never fire.
+  const { value: upsert, attempts, error: crmError } = await withRetry(
+    () =>
+      upsertContact({
+        firstName,
+        lastName,
         email,
-        fields,
-      });
-    }
-  } catch (err) {
-    console.error("[booking] GHL flow threw — submission only in Vercel logs:", err, {
+        phone: fields.phone || undefined,
+        source: `Website Booking Form — ${brand.company}`,
+        tags,
+        customFields,
+      }),
+    { attempts: 3, baseDelayMs: 250 },
+  );
+
+  if (upsert) {
+    // Note + tags are enrichment. Their failure does not endanger the lead
+    // itself, which is already safely in the CRM, so it must not fail the request.
+    await Promise.allSettled([
+      addNote(upsert.contactId, buildNote(fields, smsConsent, consentMeta)),
+      addTags(upsert.contactId, tags),
+    ]);
+    console.log("[booking] GHL upsert ok", {
+      contactId: upsert.contactId,
+      locationId: upsert.locationId,
+      attempts,
+    });
+  } else {
+    leadPayload.crmFailed = true;
+    leadPayload.crmError = crmError instanceof Error ? crmError.message : String(crmError ?? "unknown");
+    console.error(`[booking] GHL upsert failed after ${attempts} attempts`, crmError);
+  }
+
+  // 2. Deliver to a human on EVERY lead, not only on failure (spec §7 G7).
+  //    This is what makes the lead survive a CRM outage.
+  const sink = await deliverLead(leadPayload, brand.company);
+
+  // 3. Only claim success when the lead actually reached somewhere durable.
+  //    If the CRM write failed AND no sink accepted it, the visitor must not see
+  //    a confirmation. Send them to the fallback state that asks them to call.
+  const lost = !upsert && !sink.delivered;
+  if (lost) {
+    console.error("[booking] LEAD AT RISK — CRM and every sink failed", {
       name,
       email,
       fields,
+      sinkFailed: sink.failed,
     });
+    return NextResponse.redirect(new URL("/thanks?status=call", req.url), { status: 303 });
   }
 
   return NextResponse.redirect(new URL("/thanks", req.url), {

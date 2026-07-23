@@ -68,6 +68,25 @@ if (site.brand) Object.assign(brand, site.brand);
 if (site.niche) brand.niche = site.niche;
 if (site.reference_style) brand.reference_style = site.reference_style;
 if (site.reference_style_url) brand.reference_style_url = site.reference_style_url;
+
+// G1 + G3b: fold the funnel wiring from the hub record into brand-config.ghl, so
+// the home page renders the operator's chosen form/calendar mode and the booking
+// form routes to the right sub-account. The API TOKEN is never in site.ghl (it
+// lives in the read-guarded token store, injected as a Vercel env at deploy);
+// only the non-secret ids + modes travel here. Only overwrite when present so a
+// site without CRM config keeps the template defaults (native form, no calendar).
+if (site.ghl && typeof site.ghl === "object") {
+  brand.ghl = brand.ghl || {};
+  const g = site.ghl;
+  if (g.location_id) brand.ghl.location_id = g.location_id;
+  if (g.form_mode) brand.ghl.form_mode = g.form_mode;
+  if (typeof g.form_id === "string") brand.ghl.form_id = g.form_id;
+  if (g.calendar_mode) brand.ghl.calendar_mode = g.calendar_mode;
+  if (typeof g.calendar_id === "string") brand.ghl.calendar_id = g.calendar_id;
+  console.log(
+    `[generate-pages] ghl funnel merged. form=${brand.ghl.form_mode || "native"} calendar=${brand.ghl.calendar_mode || "native"} location=${brand.ghl.location_id || "(none)"}`,
+  );
+}
 writeFileSync(brandConfigPath, JSON.stringify(brand, null, 2));
 console.log(
   `[generate-pages] brand merged. company=${brand.company} niche=${brand.niche} reference_style=${brand.reference_style || "fga-canonical"}`,

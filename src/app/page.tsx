@@ -23,6 +23,20 @@ export default function HomePage() {
   const email = brand.contact?.email ?? "";
   const serviceAreaOptions = brand.ghl?.service_area_options ?? brand.service_areas ?? [];
 
+  // G3b: how the lead form + booking calendar render. "native" keeps our styled
+  // form (posting to /api/book, with the build-time A2P consent block and the
+  // never-lose-a-lead fail-safe) and no calendar. "ghl" swaps in a direct GHL
+  // iframe. A value is used verbatim if it is a full URL, else the standard
+  // widget URL is built from the id.
+  const formMode = brand.ghl?.form_mode ?? "native";
+  const formId = brand.ghl?.form_id ?? "";
+  const calendarMode = brand.ghl?.calendar_mode ?? "native";
+  const calendarId = brand.ghl?.calendar_id ?? "";
+  const ghlSrc = (kind: "form" | "calendar", v: string) =>
+    /^https?:\/\//.test(v)
+      ? v
+      : `https://api.leadconnectorhq.com/widget/${kind === "form" ? "form" : "booking"}/${v}`;
+
   const booking = (
     <>
       {/* BOOKING — A2P-compliant lead form */}
@@ -33,6 +47,14 @@ export default function HomePage() {
             <h2 className="t-h2">Tell us about your project.</h2>
           </div>
           <div className="grid gap-12 lg:grid-cols-[2fr_1fr]">
+            {formMode === "ghl" && formId ? (
+              <iframe
+                src={ghlSrc("form", formId)}
+                title="Request form"
+                className="w-full"
+                style={{ minHeight: "640px", border: "1px solid var(--line)", background: "var(--paper-2)" }}
+              />
+            ) : (
             <form
               method="POST"
               action="/api/book"
@@ -87,6 +109,7 @@ export default function HomePage() {
                 <a href="/terms" className="underline" style={{ color: "var(--volt)" }}>Terms</a>.
               </p>
             </form>
+            )}
 
             <aside className="space-y-5">
               <SidebarBlock title="How it works">
@@ -127,6 +150,25 @@ export default function HomePage() {
           </div>
         </div>
       </section>
+
+      {/* BOOKING CALENDAR — only when the operator chose a GHL calendar embed
+          (spec §7 G3b/G4: direct iframe, never a vendor JS loader). */}
+      {calendarMode === "ghl" && calendarId ? (
+        <section id="book-call" className="section" style={{ background: "var(--paper-2)" }}>
+          <div className="wrap">
+            <div className="mb-8 max-w-[24ch]">
+              <span className="t-mono mb-5 block">Book a time</span>
+              <h2 className="t-h2">Pick a slot that works.</h2>
+            </div>
+            <iframe
+              src={ghlSrc("calendar", calendarId)}
+              title="Booking calendar"
+              className="w-full"
+              style={{ minHeight: "700px", border: "1px solid var(--line)", background: "var(--paper)" }}
+            />
+          </div>
+        </section>
+      ) : null}
 
       {/* FAQ — AEO-required: visible HTML AND JSON-LD (rendered in HomePage) */}
       {faqs.length > 0 ? (
