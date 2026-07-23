@@ -39,6 +39,7 @@
 import { readFileSync, writeFileSync, existsSync } from "node:fs";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
+import { resolveTokens } from "./lib/resolve-tokens.mjs";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(HERE, "..");
@@ -62,6 +63,45 @@ const SKILL_DIR =
 const site = JSON.parse(readFileSync(sitePath, "utf-8"));
 const brandConfigPath = join(ROOT, "brand-config.json");
 const brand = JSON.parse(readFileSync(brandConfigPath, "utf-8"));
+
+// ── Reference-style token resolution (design engine Increment 2) ─────────────
+// Resolve the chosen reference-style SEED (an fga-pro-max-skill token set) into
+// the fixed brand-config color + font slots, so two styles render a visibly
+// different color + type treatment on the same content. This runs BEFORE the
+// brand-kit merge below, so the client's own primary/accent/fonts always win;
+// the seed supplies the style character and fills every slot the kit leaves
+// blank. Only fires when the operator explicitly chose a style — an unstyled
+// site keeps the template's neutral defaults.
+function loadSeed(style) {
+  if (!style) return null;
+  const file = style === "fga-canonical"
+    ? join(SKILL_DIR, "tokens", "fga-canonical.json")
+    : join(SKILL_DIR, "tokens", "seeds", `${style}.json`);
+  if (!existsSync(file)) {
+    console.warn(`[generate-pages] reference_style seed not found: ${file} — skipping token resolution`);
+    return null;
+  }
+  try {
+    return JSON.parse(readFileSync(file, "utf-8"));
+  } catch (e) {
+    console.warn(`[generate-pages] seed parse failed for ${style}: ${e.message} — skipping`);
+    return null;
+  }
+}
+if (site.reference_style) {
+  const seed = loadSeed(site.reference_style);
+  const resolved = seed ? resolveTokens(seed) : null;
+  if (resolved) {
+    brand.colors = { ...brand.colors, ...resolved.colors };
+    brand.fonts = { ...brand.fonts, ...resolved.fonts };
+    if (resolved.radius) brand.radius = resolved.radius;
+    console.log(
+      `[generate-pages] reference_style "${site.reference_style}" resolved. ` +
+      `surface=${resolved.colors.surface} ink=${resolved.colors.ink} accent=${resolved.colors.accent} ` +
+      `display=${resolved.fonts.display || "(seed default)"} radius=${resolved.radius || "(default)"}`,
+    );
+  }
+}
 
 // Merge the hub-supplied brand facts (colors, contact, company, niche, …) first.
 // The hub sends only the facts it can source from the brand kit — for the nested
