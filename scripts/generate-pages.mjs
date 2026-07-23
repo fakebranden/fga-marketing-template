@@ -64,7 +64,26 @@ const brandConfigPath = join(ROOT, "brand-config.json");
 const brand = JSON.parse(readFileSync(brandConfigPath, "utf-8"));
 
 // Merge the hub-supplied brand facts (colors, contact, company, niche, …) first.
-if (site.brand) Object.assign(brand, site.brand);
+// The hub sends only the facts it can source from the brand kit — for the nested
+// objects (colors/fonts/contact) that is a PARTIAL (e.g. just primary + accent).
+// A shallow Object.assign would replace the whole nested object and blow away
+// the 8 template color tokens the kit doesn't carry (surface/ink/mute/line/…),
+// breaking the render. Deep-merge those three so a partial overlays the template
+// defaults; every other field is a plain scalar and assigns directly.
+const NESTED_BRAND_KEYS = new Set(["colors", "fonts", "contact", "socials"]);
+if (site.brand && typeof site.brand === "object") {
+  for (const [key, value] of Object.entries(site.brand)) {
+    if (
+      NESTED_BRAND_KEYS.has(key) &&
+      value && typeof value === "object" && !Array.isArray(value) &&
+      brand[key] && typeof brand[key] === "object" && !Array.isArray(brand[key])
+    ) {
+      brand[key] = { ...brand[key], ...value };
+    } else {
+      brand[key] = value;
+    }
+  }
+}
 if (site.niche) brand.niche = site.niche;
 if (site.reference_style) brand.reference_style = site.reference_style;
 if (site.reference_style_url) brand.reference_style_url = site.reference_style_url;

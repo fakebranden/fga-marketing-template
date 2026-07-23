@@ -6,6 +6,7 @@ import { SiteFooter } from "@/components/site-footer";
 import { JsonLd } from "@/components/json-ld";
 import { siteGraph } from "@/lib/seo";
 import brand from "../../brand-config.json";
+import { brandStyleVars, googleFontsHref } from "@/lib/brand-style";
 
 // Default font pairing — overridden per-client at site-generation time if
 // brand.fonts demands a different pair (e.g. Playfair + Source Sans for
@@ -78,9 +79,30 @@ export const metadata: Metadata = {
 export default function RootLayout({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
+  // Per-client brand facts drive the semantic CSS vars (colors + fonts) as an
+  // inline style on <html>, overriding the generic globals.css defaults with no
+  // FOUC and no specificity guesswork. When the client uses a non-default font,
+  // load it from Google Fonts (next/font self-hosts the Fraunces/Inter default).
+  const brandVars = brandStyleVars(brand) as React.CSSProperties;
+  const fontsHref = googleFontsHref(brand.fonts);
   return (
-    <html lang="en" className={`${fontDisplay.variable} ${fontBody.variable} h-full antialiased`}>
+    <html
+      lang="en"
+      style={brandVars}
+      className={`${fontDisplay.variable} ${fontBody.variable} h-full antialiased`}
+    >
       <body className="min-h-full flex flex-col bg-surface text-ink">
+        {/* React 19 hoists these <link> tags into <head>. Only rendered when the
+            client uses a non-default font pairing; next/font self-hosts the
+            Fraunces/Inter default so no external request is made otherwise. */}
+        {fontsHref ? (
+          <>
+            <link rel="preconnect" href="https://fonts.googleapis.com" />
+            <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
+            {/* precedence makes React 19 hoist + dedupe the stylesheet into <head>. */}
+            <link rel="stylesheet" href={fontsHref} precedence="high" />
+          </>
+        ) : null}
         <JsonLd data={siteGraph()} />
         <SiteHeader />
         <main className="flex-1">{children}</main>
