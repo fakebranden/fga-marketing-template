@@ -92,7 +92,7 @@ export function SotyHome({ booking }: { booking: React.ReactNode }) {
         {valueProps.length > 0 ? (
           <section id="value" className="section">
             <Wrap>
-              <div className="mb-12 max-w-[20ch] md:mb-16">
+              <div className="mb-12 md:mb-16">
                 <span className="t-mono mb-5 block">What you get</span>
                 <CutHeading text="Everything your business needs to win online." className="t-h2 max-w-[18ch]" />
               </div>
@@ -115,9 +115,9 @@ export function SotyHome({ booking }: { booking: React.ReactNode }) {
         {steps.length > 0 ? (
           <section id="method" className="section">
             <Wrap>
-              <div className="mb-14 max-w-[22ch] md:mb-20">
+              <div className="mb-14 md:mb-20">
                 <span className="t-mono mb-5 block">How it works</span>
-                <CutHeading text="Built around your business, then put to work." className="t-h2" />
+                <CutHeading text="Built around your business, then put to work." className="t-h2 max-w-[22ch]" />
               </div>
               {steps.map((s, i) => (
                 <Reveal key={s.step} delay={i * 0.05}>

@@ -72,7 +72,11 @@ export const VerticalCutReveal = forwardRef<VerticalCutRevealRef, TextProps>(
         {(splitBy === "characters" ? (elements as WordObject[]) : (elements as string[]).map((el, i) => ({ characters: [el], needsSpace: i !== elements.length - 1 }))).map((wordObj, wordIndex, array) => {
           const prev = array.slice(0, wordIndex).reduce((s, w) => s + w.characters.length, 0);
           return (
-            <span key={wordIndex} aria-hidden className={cn("inline-flex overflow-hidden", wordLevelClassName)}>
+            // max-w-full so a word that is wider than its container WRAPS instead of
+            // being chopped mid-letter: overflow-hidden is here for the vertical cut
+            // reveal, but it clips horizontally too, which shipped headings reading
+            // "BUILT AROU / YOUR BUSIN" on the live franchi-law lander (2026-07-24).
+            <span key={wordIndex} aria-hidden className={cn("inline-flex max-w-full overflow-hidden", wordLevelClassName)}>
               {wordObj.characters.map((char, charIndex) => (
                 <span className={cn(elementLevelClassName, "whitespace-pre-wrap relative")} key={charIndex}>
                   <motion.span custom={prev + charIndex} initial="hidden" animate={isAnimating ? "visible" : "hidden"} variants={variants} className="inline-block">{char}</motion.span>

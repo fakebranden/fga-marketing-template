@@ -42,9 +42,9 @@ export default function HomePage() {
       {/* BOOKING — A2P-compliant lead form */}
       <section id="book" className="section" style={{ background: "var(--paper)" }}>
         <div className="wrap">
-          <div className="mb-12 max-w-[24ch]">
+          <div className="mb-12">
             <span className="t-mono mb-5 block">Get started</span>
-            <h2 className="t-h2">Tell us about your project.</h2>
+            <h2 className="t-h2 max-w-[24ch]">Tell us about your project.</h2>
           </div>
           <div className="grid gap-12 lg:grid-cols-[2fr_1fr]">
             {formMode === "ghl" && formId ? (
@@ -156,9 +156,9 @@ export default function HomePage() {
       {calendarMode === "ghl" && calendarId ? (
         <section id="book-call" className="section" style={{ background: "var(--paper-2)" }}>
           <div className="wrap">
-            <div className="mb-8 max-w-[24ch]">
+            <div className="mb-8">
               <span className="t-mono mb-5 block">Book a time</span>
-              <h2 className="t-h2">Pick a slot that works.</h2>
+              <h2 className="t-h2 max-w-[24ch]">Pick a slot that works.</h2>
             </div>
             <iframe
               src={ghlSrc("calendar", calendarId)}
