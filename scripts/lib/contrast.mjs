@@ -202,8 +202,48 @@ export const RENDERED_PAIRS = [
  * backgrounds — the template used to hardcode `var(--surface)` there and simply
  * hope the accent was dark enough.
  */
-export function enforcePaletteContrast(input) {
+/**
+ * Re-derive the tones that are DEPENDENT on the surface, whenever they sit on
+ * the wrong side of it.
+ *
+ * Needed because the palette is assembled from layers: a reference URL can
+ * supply `surface` (e.g. Linear's near-black #08090a) while `surface_soft` and
+ * `line` are still the light values inherited from the style seed. Alternating
+ * sections would then flash light on a dark site and the hairlines would vanish.
+ *
+ * A dark surface lightens its dependents, a light surface darkens them, so the
+ * relationship is always "slightly separated from the page", never inverted.
+ */
+export function harmonizeSurfaces(input) {
   const colors = { ...input };
+  if (!channels(colors.surface)) return colors;
+  const lum = relativeLuminance(colors.surface);
+  const isDark = lum < 0.2;
+  const shift = (hex, amt) => {
+    const hsl = rgbToHsl(hex);
+    return withLightness(hex, isDark ? hsl.l + amt : hsl.l - amt);
+  };
+
+  // These tones are meant to sit a hair off the page, so the test is "is it
+  // still a SUBTLE separation" rather than merely "is it on the right side".
+  // Checking side alone let a near-white #f1ece0 band survive on Linear's
+  // near-black surface: technically lighter, visually a blown-out stripe.
+  // A ratio above ~1.8:1 against the page is no longer subtle, so re-derive.
+  const notSubtle = (hex) => {
+    if (!channels(hex)) return true;
+    const ratio = contrastRatio(hex, colors.surface);
+    return ratio === null || ratio > 1.8;
+  };
+  if (notSubtle(colors.surface_soft)) colors.surface_soft = shift(colors.surface, 0.05);
+  if (notSubtle(colors.line)) colors.line = shift(colors.surface, 0.12);
+  if (notSubtle(colors.line_soft)) colors.line_soft = shift(colors.surface, 0.07);
+  return colors;
+}
+
+export function enforcePaletteContrast(input) {
+  // Coherence first, legibility second: repairing text against an incoherent
+  // set of surfaces would just lock in the wrong backgrounds.
+  const colors = harmonizeSurfaces(input);
   const surfaces = [colors.surface, colors.surface_soft].filter(Boolean);
 
   if (colors.ink && surfaces.length) colors.ink = ensureContrast(colors.ink, surfaces, 4.5);

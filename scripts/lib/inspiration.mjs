@@ -1,19 +1,43 @@
 // Inspiration mapping (design engine Increment 3 — URL analysis).
 //
-// ANTI-MIMICRY IS THE WHOLE POINT (spec §7 I2 + §1.10 precedence): an analyzed
-// reference URL contributes LAYOUT / RHYTHM / MOTION character ONLY — NEVER
-// palette or type. Inspiration supplies STRUCTURE; the brand kit supplies
-// IDENTITY. That split is what stops every generated site looking like the site
-// it was told to mimic. This module therefore deals exclusively in spacing
-// rhythm, content measure, and motion intensity. There is no color or font in
-// here by construction, and generate-pages only ever applies `--section-scale`
-// and `--maxw` from it — the palette/type slots are untouched.
+// SCOPE CHANGED 2026-07-24 BY OPERATOR DECISION. This module used to enforce
+// "anti-mimicry": a reference URL contributed layout/rhythm/motion ONLY, never
+// palette or type. In practice that meant an operator pointed the tool at a
+// reference site, and the generated lander looked nothing like it — which read
+// as the feature being broken. The operator's call: a reference URL should
+// "drive the full look" so the result reads as a sibling of the reference.
+//
+// So inspiration now also supplies PALETTE and TYPE. What is still NOT copied:
+// content, copy, imagery, logos, or markup. We extract a design SYSTEM
+// (surface/ink/accent + families + rhythm), never assets or text.
+//
+// Two guarantees keep this safe:
+//   1. The brand kit still wins on the client's own identity colours, so a
+//      client with real brand colours keeps them (see generate-pages precedence).
+//   2. Everything is re-checked by contrast.mjs afterwards, so a reference with
+//      poor contrast can never make the generated site fail WCAG AA.
 //
 // Pure + dependency-free (no browser) so the mapping is unit-testable. The DOM
 // measurement that produces `metrics` lives in extract-inspiration.mjs.
 
 // Clamp helper.
 const clamp = (n, lo, hi) => Math.max(lo, Math.min(hi, n));
+
+const isHex = (v) => typeof v === "string" && /^#?[0-9a-fA-F]{6}$/.test(v.trim());
+const norm = (v) => {
+  const h = v.trim().replace(/^#/, "").toLowerCase();
+  return `#${h}`;
+};
+
+// A family only counts as a design signal if it is an actual typeface. Generic
+// stacks tell us nothing and must not overwrite the seed's chosen type.
+const GENERIC_FAMILIES = new Set([
+  "system-ui", "-apple-system", "blinkmacsystemfont", "sans-serif", "serif",
+  "monospace", "ui-sans-serif", "ui-serif", "ui-monospace", "inherit", "initial",
+  "arial", "helvetica",
+]);
+const isRealFamily = (v) =>
+  typeof v === "string" && v.trim().length > 1 && !GENERIC_FAMILIES.has(v.trim().toLowerCase());
 
 // Raw metrics (from the browser measurement) → a normalized inspiration profile.
 //   metrics.sectionPaddingVh   median section vertical padding / viewport height
@@ -46,12 +70,27 @@ export function layoutToInspiration(metrics) {
   else if (anim <= 0.04) motion = "calm";
   else motion = "balanced";
 
+  // Palette + type lifted from the reference (operator decision 2026-07-24).
+  // Only well-formed hex values survive; anything missing simply stays absent so
+  // the seed/kit value keeps the slot. A generic/system font family is dropped
+  // rather than pinned, since "system-ui" carries no design signal.
+  const colors = {};
+  if (isHex(m.surfaceHex)) colors.surface = norm(m.surfaceHex);
+  if (isHex(m.inkHex)) colors.ink = norm(m.inkHex);
+  if (isHex(m.accentHex)) colors.accent = norm(m.accentHex);
+
+  const fonts = {};
+  if (isRealFamily(m.displayFamily)) fonts.display = m.displayFamily.trim();
+  if (isRealFamily(m.bodyFamily)) fonts.body = m.bodyFamily.trim();
+
   return {
     density,
     sectionScale: clamp(sectionScale, 0.7, 1.4),
     measure,
     maxWidthRem: clamp(maxWidthRem, 56, 104),
     motion,
+    ...(Object.keys(colors).length ? { colors } : {}),
+    ...(Object.keys(fonts).length ? { fonts } : {}),
     // Keep the raw signals for traceability / debugging in brand-config.
     _metrics: { sectionPaddingVh: round(padVh, 3), contentWidthPx: Math.round(widthPx), animatedRatio: round(anim, 3) },
   };

@@ -6,6 +6,7 @@
 // audited pairs were below AA and `.t-accent` failed on all nine styles.
 import { describe, expect, it } from "vitest";
 import {
+  harmonizeSurfaces,
   auditPalette,
   contrastRatio,
   ensureContrast,
@@ -163,5 +164,56 @@ describe("enforcePaletteContrast", () => {
     const snapshot = JSON.stringify(input);
     enforcePaletteContrast(input);
     expect(JSON.stringify(input)).toBe(snapshot);
+  });
+});
+
+// Surface harmonisation. Added 2026-07-24 with the reference-URL scope change:
+// a reference can now supply `surface` while surface_soft/line are still the
+// values inherited from the style seed, which produced a near-white band on a
+// near-black page.
+describe("harmonizeSurfaces", () => {
+  const DARK_REF = {
+    surface: "#08090a", ink: "#d0d6e0", accent: "#5e6ad2",
+    surface_soft: "#f1ece0", line: "#e5decc", line_soft: "#f5f0e6",
+    mute: "#5e5e5a", primary: "#08090a", primary_dark: "#000000", ink_soft: "#47576b",
+  };
+
+  it("pulls light inherited bands onto a dark surface", () => {
+    const out = harmonizeSurfaces(DARK_REF);
+    // must end up near the page, not a blown-out stripe
+    expect(contrastRatio(out.surface_soft, out.surface)).toBeLessThan(1.8);
+    expect(contrastRatio(out.line, out.surface)).toBeLessThan(3);
+    expect(relativeLuminance(out.surface_soft)).toBeGreaterThan(relativeLuminance(out.surface));
+  });
+
+  it("leaves an already-coherent light palette untouched", () => {
+    const light = {
+      surface: "#ffffff", surface_soft: "#f6f9fc", line: "#e3e8ee",
+      line_soft: "#f0f4f8", ink: "#0a2540",
+    };
+    const out = harmonizeSurfaces(light);
+    expect(out.surface_soft).toBe("#f6f9fc");
+    expect(out.line).toBe("#e3e8ee");
+  });
+
+  it("catches a WILDLY mismatched band, not just an inverted one", () => {
+    // #f1ece0 is technically lighter than #08090a, so a side-only check passed
+    // it. It is still visually wrong.
+    const out = harmonizeSurfaces(DARK_REF);
+    expect(out.surface_soft).not.toBe("#f1ece0");
+  });
+
+  it("is a no-op when there is no usable surface", () => {
+    expect(harmonizeSurfaces({ ink: "#000000" })).toEqual({ ink: "#000000" });
+  });
+
+  it("a dark reference palette ends AA-clean end to end", () => {
+    expect(auditPalette(enforcePaletteContrast(DARK_REF))).toEqual([]);
+  });
+
+  it("keeps the reference's own ink and accent on a dark surface", () => {
+    const out = enforcePaletteContrast(DARK_REF);
+    expect(out.ink).toBe("#d0d6e0");   // reference text colour survives
+    expect(out.accent).toBe("#5e6ad2"); // reference signature hue survives
   });
 });

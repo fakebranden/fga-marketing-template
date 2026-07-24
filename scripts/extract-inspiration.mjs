@@ -86,10 +86,95 @@ function measureInPage() {
   }
   const animatedRatio = n ? animated / n : 0;
 
+  // 4. Palette — the reference's actual surface / ink / accent.
+  //
+  // Area-weighted, because what makes a site "look like" itself is the colour
+  // covering the most pixels, not the most DOM nodes. Surface = the dominant
+  // background; ink = the dominant colour of real body text; accent = the most
+  // saturated colour used on interactive/emphasis elements, which is where a
+  // brand's signature hue actually lives.
+  const toRgb = (v) => {
+    const m = String(v).match(/rgba?\(([^)]+)\)/);
+    if (!m) return null;
+    const p = m[1].split(",").map((x) => parseFloat(x));
+    if (p.length >= 4 && p[3] < 0.5) return null; // effectively transparent
+    if (![p[0], p[1], p[2]].every(Number.isFinite)) return null;
+    return { r: p[0], g: p[1], b: p[2] };
+  };
+  const hex = ({ r, g, b }) =>
+    "#" + [r, g, b].map((c) => Math.max(0, Math.min(255, Math.round(c))).toString(16).padStart(2, "0")).join("");
+  const sat = ({ r, g, b }) => {
+    const mx = Math.max(r, g, b), mn = Math.min(r, g, b);
+    return mx === 0 ? 0 : (mx - mn) / mx;
+  };
+
+  const bgArea = new Map();
+  const inkArea = new Map();
+  const accentArea = new Map();
+  const els = document.querySelectorAll("body *");
+  const cap = Math.min(els.length, 1500);
+  for (let i = 0; i < cap; i++) {
+    const el = els[i];
+    const r = el.getBoundingClientRect();
+    if (r.width < 4 || r.height < 4) continue;
+    const area = r.width * r.height;
+    const s = getComputedStyle(el);
+
+    const bg = toRgb(s.backgroundColor);
+    if (bg) bgArea.set(hex(bg), (bgArea.get(hex(bg)) || 0) + area);
+
+    // Ink: only count elements that hold their own visible text.
+    const own = Array.from(el.childNodes)
+      .filter((nd) => nd.nodeType === 3)
+      .map((nd) => nd.textContent.trim())
+      .join("");
+    if (own.length > 2) {
+      const col = toRgb(s.color);
+      if (col) {
+        const fs = parseFloat(s.fontSize) || 16;
+        const weight = own.length * fs; // text volume, not box area
+        inkArea.set(hex(col), (inkArea.get(hex(col)) || 0) + weight);
+        // Saturated text (links, emphasis) is an accent candidate.
+        if (sat(col) > 0.25) accentArea.set(hex(col), (accentArea.get(hex(col)) || 0) + weight);
+      }
+    }
+    // Saturated fills on small elements (buttons, chips, rules) are the
+    // strongest accent signal on most marketing sites.
+    if (bg && sat(bg) > 0.25 && area < vw * vh * 0.4) {
+      accentArea.set(hex(bg), (accentArea.get(hex(bg)) || 0) + area);
+    }
+  }
+  const top = (m) => {
+    let best = null, bestV = -1;
+    for (const [k, v] of m) if (v > bestV) { bestV = v; best = k; }
+    return best;
+  };
+
+  // 5. Typography — the families actually used for headings vs body.
+  const famOf = (el) => {
+    const f = getComputedStyle(el).fontFamily || "";
+    return f.split(",")[0].replace(/^["']|["']$/g, "").trim();
+  };
+  const headingEl = document.querySelector("h1") || document.querySelector("h2");
+  const bodyEl =
+    Array.from(document.querySelectorAll("p")).find((p) => (p.textContent || "").trim().length > 40) ||
+    document.body;
+  const displayFamily = headingEl ? famOf(headingEl) : "";
+  const bodyFamily = bodyEl ? famOf(bodyEl) : "";
+  const headingWeight = headingEl ? getComputedStyle(headingEl).fontWeight : "";
+  const headingTransform = headingEl ? getComputedStyle(headingEl).textTransform : "";
+
   return {
     sectionPaddingVh,
     contentWidthPx: Number.isFinite(contentWidthPx) ? contentWidthPx : NaN,
     animatedRatio,
+    surfaceHex: top(bgArea),
+    inkHex: top(inkArea),
+    accentHex: top(accentArea),
+    displayFamily,
+    bodyFamily,
+    headingWeight,
+    headingTransform,
     _sampleSections: sections.length,
     _sampleParas: paras.length,
   };

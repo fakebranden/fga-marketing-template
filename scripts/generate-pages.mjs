@@ -119,10 +119,18 @@ if (site.reference_style_url) {
     if (inspiration) {
       brand.layout = inspiration;
       const vars = inspirationToLayoutVars(inspiration);
+      // Palette + type from the reference outrank the style SEED (the operator
+      // pointed at this URL on purpose, so it should beat a generic seed), but
+      // the brand-kit merge below still runs after this, so a client's own
+      // brand colours keep winning. Contrast enforcement runs last regardless.
+      if (inspiration.colors) brand.colors = { ...brand.colors, ...inspiration.colors };
+      if (inspiration.fonts) brand.fonts = { ...brand.fonts, ...inspiration.fonts };
       console.log(
         `[generate-pages] inspiration from ${site.reference_style_url}: ` +
         `density=${inspiration.density} measure=${inspiration.measure} motion=${inspiration.motion} ` +
-        `(vars ${JSON.stringify(vars)}) — layout only, palette/type untouched`,
+        `(vars ${JSON.stringify(vars)}) ` +
+        `palette=${inspiration.colors ? JSON.stringify(inspiration.colors) : "(none found)"} ` +
+        `type=${inspiration.fonts ? JSON.stringify(inspiration.fonts) : "(none found)"}`,
       );
     }
   } catch (e) {
