@@ -36,3 +36,8 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts.bak
+
+# Client-owned, written into the CLIENT repo by the hub publish step.
+# The template itself never ships one; its absence is what makes the
+# brand-config composition the default.
+content/lander.json

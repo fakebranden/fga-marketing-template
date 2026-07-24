@@ -61,12 +61,38 @@ const HIDE_GLYPHS = `*, *::before, *::after {
   text-shadow: none !important;
   text-decoration-color: transparent !important;
   caret-color: transparent !important;
-  /* background-clip:text paints the element's BACKGROUND in the shape of the
-     glyphs. Making the fill transparent does not remove that, so without this
-     the letterforms survive into the "background" screenshot and the check
-     measures the text against itself. */
-  background-image: none !important;
 }`;
+
+// background-clip:text paints an element's BACKGROUND in the shape of its glyphs,
+// so making the fill transparent does not remove the letterforms: they survive
+// into the "background" screenshot and the check ends up measuring text against
+// itself. They have to go.
+//
+// It must be done SURGICALLY. A blanket `background-image: none` also strips every
+// legitimate gradient background on the page, which silently changes what is
+// behind the text and produces both false failures and false passes. So this
+// neutralises only the elements whose computed background-clip is actually `text`.
+const NEUTRALISE_TEXT_CLIP = () => {
+  const touched = [];
+  for (const el of document.querySelectorAll("*")) {
+    const cs = getComputedStyle(el);
+    const clip = cs.webkitBackgroundClip || cs.backgroundClip;
+    if (clip !== "text") continue;
+    touched.push(el);
+    el.setAttribute("data-legibility-had-textclip", "1");
+    el.style.setProperty("background-image", "none", "important");
+    el.style.setProperty("background-color", "transparent", "important");
+  }
+  return touched.length;
+};
+
+const RESTORE_TEXT_CLIP = () => {
+  for (const el of document.querySelectorAll("[data-legibility-had-textclip]")) {
+    el.style.removeProperty("background-image");
+    el.style.removeProperty("background-color");
+    el.removeAttribute("data-legibility-had-textclip");
+  }
+};
 
 let chromium;
 try {
@@ -305,29 +331,43 @@ for (const viewport of viewports) {
       }
 
       // --- pixel contrast, worst case over N frames -------------------------
-      const perLine = lines.map(() => []);
       const style = await page.addStyleTag({ content: HIDE_GLYPHS });
+      await page.evaluate(NEUTRALISE_TEXT_CLIP);
+
+      // Rects are RE-MEASURED for every frame, immediately before that frame's
+      // screenshot. Collecting once up front and reusing those rects looks
+      // harmless but is not: scroll-driven and GSAP choreography (the curtain
+      // footer especially) keeps moving elements between the collection and the
+      // capture, so the sampler reads a region the text has already left. That
+      // produced confident failures on pills whose actual background was clean
+      // cream at 5.2:1. Hiding glyphs does not affect layout, so re-measuring
+      // under the same style is safe and keeps rect and pixels in one frame.
+      const perLine = new Map();
       for (let f = 0; f < frames; f++) {
-        await page.waitForTimeout(f === 0 ? 250 : 420);
+        await page.waitForTimeout(f === 0 ? 350 : 420);
+        const frameLines = (await page.evaluate(COLLECT)).lines;
         const shot = await page.screenshot();
         if (shotDir && f === 0) {
           mkdirSync(shotDir, { recursive: true });
           writeFileSync(`${shotDir}/bg-${label}-y${y}.png`, shot);
         }
-        const sampled = await page.evaluate(SAMPLE, { b64: shot.toString("base64"), lines, dpr: 1, occluders });
-        lines.forEach((L, idx) => {
-          perLine[idx].push(judgeSamples({
+        const sampled = await page.evaluate(SAMPLE, { b64: shot.toString("base64"), lines: frameLines, dpr: 1, occluders });
+        frameLines.forEach((L, idx) => {
+          const key = `${L.tag}|${L.fontSizePx}|${L.text}`;
+          if (!perLine.has(key)) perLine.set(key, { line: L, verdicts: [] });
+          perLine.get(key).verdicts.push(judgeSamples({
             colorHex: cssColorToHex(L.color),
             samples: sampled[idx],
             threshold: wcagThreshold(L),
           }));
         });
       }
+      await page.evaluate(RESTORE_TEXT_CLIP);
       await style.evaluate((el) => el.remove());
 
-      lines.forEach((L, idx) => {
+      for (const { line: L, verdicts } of perLine.values()) {
         const need = wcagThreshold(L);
-        const v = mergeFrameVerdicts(perLine[idx]);
+        const v = mergeFrameVerdicts(verdicts);
         report.checkedLines++;
         if (!v.skipped && !v.pass) {
           failures.push({
@@ -336,7 +376,7 @@ for (const viewport of viewports) {
                     `(${v.pctBelow}% of sampled pixels below; worst pixel rgb(${v.worstPx}); text ${L.color}; ${L.fontSizePx}px)`,
           });
         }
-      });
+      }
       vpReport.steps.push({ scrollY: y, lines: lines.length });
     }
   } finally {

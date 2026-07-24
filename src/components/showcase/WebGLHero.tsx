@@ -59,6 +59,27 @@ export function headlineScale(tagline: string): string {
 // the 3D object scene, code-split so three/drei never hit the server bundle
 const Scene = dynamic(() => import("./WebGLObject").then((m) => m.WebGLObject), { ssr: false, loading: () => null });
 
+/**
+ * The R3F scene ALONE, for the spec-driven hero.
+ *
+ * The registry's HeroSection owns the positioned, mask-feathered media container
+ * (that geometry is the legibility contract, so it belongs with the section, not
+ * with the scene). This just hands over the canvas. Returns null under reduced
+ * motion, which is also what makes `media: "object"` degrade to a type-only hero
+ * rather than an empty box.
+ */
+export function WebGLHeroObject() {
+  const reduce = useReducedMotion();
+  if (reduce) return null;
+  return (
+    <Canvas camera={{ position: [0, 0, 5], fov: 45 }} dpr={[1, 2]} gl={{ antialias: true, alpha: true }}>
+      <Suspense fallback={null}>
+        <Scene />
+      </Suspense>
+    </Canvas>
+  );
+}
+
 export function WebGLHero() {
   const ref = useRef<HTMLDivElement>(null);
   const reduce = useReducedMotion();
