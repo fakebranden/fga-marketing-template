@@ -40,6 +40,7 @@ import { readFileSync, writeFileSync, existsSync } from "node:fs";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { resolveTokens } from "./lib/resolve-tokens.mjs";
+import { auditPalette, enforcePaletteContrast } from "./lib/contrast.mjs";
 import { extractInspiration } from "./extract-inspiration.mjs";
 import { inspirationToLayoutVars } from "./lib/inspiration.mjs";
 
@@ -172,6 +173,36 @@ if (site.ghl && typeof site.ghl === "object") {
     `[generate-pages] ghl funnel merged. form=${brand.ghl.form_mode || "native"} calendar=${brand.ghl.calendar_mode || "native"} location=${brand.ghl.location_id || "(none)"}`,
   );
 }
+// ── WCAG AA contrast enforcement (runs LAST, on the merged palette) ─────────
+// Must come after every colour layer (template default < seed < brand kit),
+// because the kit overrides ink / accent / primary and would undo any guarantee
+// made earlier. Repairs text tokens along their own hue and derives on_accent /
+// on_primary for colored backgrounds. See scripts/lib/contrast.mjs for the audit
+// that motivated this (174/324 rendered pairs were below AA before it existed).
+if (brand.colors && typeof brand.colors === "object") {
+  const before = auditPalette(brand.colors);
+  brand.colors = enforcePaletteContrast(brand.colors);
+  const after = auditPalette(brand.colors);
+  if (before.length) {
+    for (const f of before) {
+      console.log(
+        `[generate-pages] contrast repair: ${f.label} was ${f.fgValue} on ${f.bgValue} (${f.ratio.toFixed(2)}:1)`,
+      );
+    }
+  }
+  console.log(
+    `[generate-pages] contrast enforced. ${before.length} pair(s) below AA before, ${after.length} after. ` +
+    `ink=${brand.colors.ink} mute=${brand.colors.mute} on_accent=${brand.colors.on_accent} on_primary=${brand.colors.on_primary}`,
+  );
+  if (after.length) {
+    for (const f of after) {
+      console.warn(
+        `[generate-pages] WARNING unresolved contrast: ${f.label} ${f.fgValue} on ${f.bgValue} = ${f.ratio.toFixed(2)}:1`,
+      );
+    }
+  }
+}
+
 writeFileSync(brandConfigPath, JSON.stringify(brand, null, 2));
 console.log(
   `[generate-pages] brand merged. company=${brand.company} niche=${brand.niche} reference_style=${brand.reference_style || "fga-canonical"}`,

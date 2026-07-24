@@ -20,7 +20,14 @@
   --primary-dark: #020617;
   --primary-soft: #E2E8F0;
   --accent: #F59E0B;
-  --accent-dark: #B45309;
+  --accent-dark: #E2680B;
+  /* Text colors for COLORED backgrounds. The stylesheet used to put
+     `var(--surface)` on accent and primary bands and hope they were dark enough;
+     across the 9 reference styles they frequently were not (see
+     scripts/lib/contrast.mjs). generate-pages.mjs recomputes both per client so
+     every generated palette clears WCAG AA. */
+  --on-accent: #2E2415;
+  --on-primary: #9FA3AC;
   --surface: #FFFFFF;
   --surface-soft: #F8FAFC;
   --ink: #0F172A;
@@ -41,6 +48,8 @@
   --color-primary-soft: var(--primary-soft);
   --color-accent: var(--accent);
   --color-accent-dark: var(--accent-dark);
+  --color-on-accent: var(--on-accent);
+  --color-on-primary: var(--on-primary);
   --color-surface: var(--surface);
   --color-surface-soft: var(--surface-soft);
   --color-ink: var(--ink);
@@ -111,7 +120,7 @@ body {
   gap: 0.5rem;
   padding: 0.85rem 2rem;
   background: var(--accent);
-  color: var(--surface);
+  color: var(--on-accent);
   font-family: var(--font-display);
   font-weight: 800;
   font-size: 0.95rem;
@@ -131,7 +140,7 @@ body {
   gap: 0.5rem;
   padding: 0.85rem 2rem;
   background: var(--primary);
-  color: var(--surface);
+  color: var(--on-primary);
   font-family: var(--font-display);
   font-weight: 800;
   font-size: 0.95rem;
@@ -203,7 +212,7 @@ body {
 }
 
 .t-display { font-family: var(--font-display); font-weight: 700; font-size: clamp(2.6rem, 8vw, 7.5rem); line-height: 0.95; letter-spacing: 0.005em; text-transform: uppercase; text-wrap: balance; }
-.t-display em, .t-accent { font-style: normal; background: var(--volt); color: var(--accent-dark, #141204); padding: 0 0.1em; box-decoration-break: clone; -webkit-box-decoration-break: clone; }
+.t-display em, .t-accent { font-style: normal; background: var(--volt); color: var(--on-accent, #2E2415); padding: 0 0.1em; box-decoration-break: clone; -webkit-box-decoration-break: clone; }
 .t-h2 { font-family: var(--font-display); font-weight: 700; font-size: clamp(2.1rem, 5.6vw, 5rem); line-height: 0.98; letter-spacing: -0.01em; text-transform: uppercase; text-wrap: balance; }
 .t-h3 { font-family: var(--font-display); font-weight: 700; font-size: clamp(1.45rem, 2.4vw, 2.2rem); line-height: 1.04; text-transform: uppercase; }
 .t-body { font-family: var(--font-body); font-weight: 400; font-size: clamp(1rem, 1.1vw, 1.2rem); line-height: 1.6; color: var(--ink-soft); max-width: 56ch; text-wrap: pretty; }
@@ -217,7 +226,7 @@ body {
 .wrap { margin-inline: auto; width: 100%; max-width: var(--maxw); padding-inline: var(--margin); }
 
 .btn { display: inline-flex; align-items: center; gap: 0.5rem; border-radius: 9999px; font-family: var(--font-mono); font-size: 0.7rem; letter-spacing: 0.12em; text-transform: uppercase; padding: 0.95rem 1.6rem; transition: transform 160ms var(--ease-out), background 200ms var(--ease-out), color 200ms var(--ease-out), border-color 200ms var(--ease-out); will-change: transform; cursor: pointer; }
-.btn-primary { background: var(--volt); color: var(--accent-dark, #141204); }
+.btn-primary { background: var(--volt); color: var(--on-accent, #2E2415); }
 .btn-primary:hover { filter: brightness(1.08); }
 .btn:active { transform: scale(0.97); }
 .btn-ghost { background: transparent; color: var(--ink); border: 1px solid var(--line-strong); }
