@@ -225,8 +225,17 @@ jobs:
           set -euo pipefail
           if [ "${{ job.status }}" = "success" ]; then STATUS="live"; else STATUS="failed"; fi
           LIVE_URL="${{ steps.deploy.outputs.live_url }}"
+          # The FINAL palette and type are resolved here at build time (reference
+          # seed → brand-kit merge → WCAG enforcement), so the hub cannot know
+          # them. Report them back, or the hub's lander preview renders the right
+          # components in the wrong colours, which is worse than no preview.
+          RESOLVED='null'
+          if [ -f brand-config.json ]; then
+            RESOLVED=$(jq -c '{colors: .colors, fonts: .fonts}' brand-config.json 2>/dev/null || echo 'null')
+          fi
           BODY=$(jq -n --arg status "$STATUS" --arg live_url "$LIVE_URL" --arg run "${{ github.run_id }}" \
-            '{status: $status, live_url: (if $live_url == "" then null else $live_url end), detail: ("generate-marketing.yml " + $status + " · run " + $run)}')
+            --argjson resolved "$RESOLVED" \
+            '{status: $status, live_url: (if $live_url == "" then null else $live_url end), resolved_brand: $resolved, detail: ("generate-marketing.yml " + $status + " · run " + $run)}')
           curl -fsSL -X PATCH \
             -H "Authorization: Bearer ${HUB_RPC_SECRET}" \
             -H "Content-Type: application/json" \
