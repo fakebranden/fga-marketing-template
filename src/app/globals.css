@@ -210,6 +210,11 @@ body {
   --foreground: var(--ink);
   --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
   --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
+  /* Resolved from the reference: --radius is its corner treatment, --motion-scale
+     its animation intensity. Both were previously computed and then dropped on
+     the floor, so every reference produced identical pills and identical timing. */
+  --radius: 9999px;
+  --motion-scale: 1;
   --margin: clamp(1.25rem, 5vw, 5rem);
   --maxw: 92rem;
   --gutter: clamp(0.75rem, 2vw, 1.5rem);
@@ -229,7 +234,7 @@ body {
 .section-tight { padding-block: calc(clamp(3.5rem, 7vw, 7rem) * var(--section-scale, 1)); }
 .wrap { margin-inline: auto; width: 100%; max-width: var(--maxw); padding-inline: var(--margin); }
 
-.btn { display: inline-flex; align-items: center; gap: 0.5rem; border-radius: 9999px; font-family: var(--font-mono); font-size: 0.7rem; letter-spacing: 0.12em; text-transform: uppercase; padding: 0.95rem 1.6rem; transition: transform 160ms var(--ease-out), background 200ms var(--ease-out), color 200ms var(--ease-out), border-color 200ms var(--ease-out); will-change: transform; cursor: pointer; }
+.btn { display: inline-flex; align-items: center; gap: 0.5rem; border-radius: var(--radius); font-family: var(--font-mono); font-size: 0.7rem; letter-spacing: 0.12em; text-transform: uppercase; padding: 0.95rem 1.6rem; transition: transform calc(160ms * var(--motion-scale)) var(--ease-out), background calc(200ms * var(--motion-scale)) var(--ease-out), color calc(200ms * var(--motion-scale)) var(--ease-out), border-color calc(200ms * var(--motion-scale)) var(--ease-out); will-change: transform; cursor: pointer; }
 .btn-primary { background: var(--volt); color: var(--on-accent, #2E2415); }
 .btn-primary:hover { filter: brightness(1.08); }
 .btn:active { transform: scale(0.97); }

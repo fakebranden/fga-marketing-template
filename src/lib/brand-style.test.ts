@@ -5,6 +5,7 @@
 // both, family-only (no weight axis that could 400).
 import { describe, expect, it } from "vitest";
 import {
+  brandRadiusVars,
   brandColorVars,
   brandFontVars,
   brandLayoutVars,
@@ -107,5 +108,37 @@ describe("brandStyleVars", () => {
     const vars = brandStyleVars({ colors: { primary: "#252525" }, fonts: { display: "Fraunces", body: "Inter" } });
     expect(vars["--font-display"]).toBeUndefined();
     expect(vars["--primary"]).toBe("#252525");
+  });
+});
+
+describe("radius + motion (resolved from the reference, previously unwired)", () => {
+  it("emits --radius for a valid CSS length", () => {
+    expect(brandRadiusVars("4px")).toEqual({ "--radius": "4px" });
+    expect(brandRadiusVars("0.5rem")).toEqual({ "--radius": "0.5rem" });
+    expect(brandRadiusVars("50%")).toEqual({ "--radius": "50%" });
+  });
+
+  it("ignores anything that is not a plain length, since it lands in a stylesheet", () => {
+    for (const junk of ["red", "4", "4px; color:red", "url(x)", "", null, 4, undefined]) {
+      expect(brandRadiusVars(junk as unknown)).toEqual({});
+    }
+  });
+
+  it("maps motion intensity to a single duration multiplier", () => {
+    expect(brandLayoutVars({ motion: "calm" })["--motion-scale"]).toBe("0.6");
+    expect(brandLayoutVars({ motion: "balanced" })["--motion-scale"]).toBe("1");
+    expect(brandLayoutVars({ motion: "lively" })["--motion-scale"]).toBe("1.35");
+  });
+
+  it("omits the multiplier when the reference said nothing about motion", () => {
+    expect(brandLayoutVars({})["--motion-scale"]).toBeUndefined();
+    expect(brandLayoutVars({ motion: "nonsense" } as never)["--motion-scale"]).toBeUndefined();
+  });
+
+  it("brandStyleVars carries both through", () => {
+    const v = brandStyleVars({ radius: "6px", layout: { motion: "calm", sectionScale: 1.25 } } as never);
+    expect(v["--radius"]).toBe("6px");
+    expect(v["--motion-scale"]).toBe("0.6");
+    expect(v["--section-scale"]).toBe("1.25");
   });
 });

@@ -110,7 +110,7 @@ export function googleFontsHref(fonts: BrandFonts): string | null {
 }
 
 type BrandLayout =
-  | { sectionScale?: unknown; maxWidthRem?: unknown }
+  | { sectionScale?: unknown; maxWidthRem?: unknown; motion?: unknown }
   | undefined
   | null;
 
@@ -125,7 +125,28 @@ export function brandLayoutVars(layout: BrandLayout): Record<string, string> {
   if (typeof scale === "number" && Number.isFinite(scale)) out["--section-scale"] = String(scale);
   const maxw = layout.maxWidthRem;
   if (typeof maxw === "number" && Number.isFinite(maxw)) out["--maxw"] = `${maxw}rem`;
+
+  // Motion intensity, measured from the reference URL. It was resolved and
+  // stored but never reached CSS, so "design like a restrained site" produced
+  // the same animation as "design like a busy one". Expressed as a multiplier so
+  // one variable scales every duration rather than each component inventing its
+  // own idea of calm.
+  const motion = layout.motion;
+  if (motion === "calm") out["--motion-scale"] = "0.6";
+  else if (motion === "lively") out["--motion-scale"] = "1.35";
+  else if (motion === "balanced") out["--motion-scale"] = "1";
   return out;
+}
+
+/** The corner radius resolved from the reference style. Buttons and cards were
+ *  hardcoded to full pills regardless of the reference, so a square-cornered
+ *  reference still shipped pills. Accepts any CSS length; anything else is
+ *  ignored rather than emitted, since it lands in a stylesheet. */
+export function brandRadiusVars(radius: unknown): Record<string, string> {
+  if (typeof radius !== "string") return {};
+  const v = radius.trim();
+  if (!/^\d*\.?\d+(px|rem|em|%)$/.test(v)) return {};
+  return { "--radius": v };
 }
 
 // Convenience: the full inline style object for <html> — color vars + custom
@@ -135,10 +156,12 @@ export function brandStyleVars(brand: {
   colors?: BrandColors;
   fonts?: BrandFonts;
   layout?: BrandLayout;
+  radius?: unknown;
 }): Record<string, string> {
   return {
     ...brandColorVars(brand?.colors),
     ...brandFontVars(brand?.fonts),
     ...brandLayoutVars(brand?.layout),
+    ...brandRadiusVars(brand?.radius),
   };
 }
