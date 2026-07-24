@@ -128,6 +128,25 @@ const COLLECT = () => {
     const own = el.getBoundingClientRect();
     if (own.width < 4 || own.height < 4) continue;
     if (cs.clipPath === "inset(50%)" || (cs.clip && cs.clip !== "auto")) continue;
+
+    // Content inside a CLOSED <details> is not painted, but Chromium still
+    // returns a real rect for it (the UA hides it via content-visibility rather
+    // than display:none). Un-opened FAQ answers therefore look like full-size
+    // text overlapping the next accordion row. Only the <summary> is visible.
+    let inClosedDetails = false;
+    for (let a = el; a && a !== document.body; a = a.parentElement) {
+      if (a.tagName === "SUMMARY") break;
+      const d = a.parentElement;
+      if (d && d.tagName === "DETAILS" && !d.open) { inClosedDetails = true; break; }
+    }
+    if (inClosedDetails) continue;
+    // Same story for anything explicitly skipped from rendering.
+    let skipped = false;
+    for (let a = el; a && a !== document.body; a = a.parentElement) {
+      const v = getComputedStyle(a).contentVisibility;
+      if (v === "hidden" || v === "auto") { skipped = v === "hidden"; if (skipped) break; }
+    }
+    if (skipped) continue;
     // an ancestor may be the one that is faded out / hidden
     let anc = el, hidden = false;
     while (anc && anc !== document.body) {
