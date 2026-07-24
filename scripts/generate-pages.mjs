@@ -146,6 +146,23 @@ if (site.reference_style_url) {
 // breaking the render. Deep-merge those three so a partial overlays the template
 // defaults; every other field is a plain scalar and assigns directly.
 const NESTED_BRAND_KEYS = new Set(["colors", "fonts", "contact", "socials"]);
+
+// When the operator EXPLICITLY chose a reference (a style seed or a URL), that
+// choice owns the aesthetic and the brand kit must not erase it.
+//
+// This is why "design like Eleven Madison Park" had almost no visible effect on
+// franchi-law: the EMP seed resolved cream/green/gold, then the kit overwrote
+// `ink` and `accent` with the client's navy and only the cream surface survived.
+// The operator asked for the result to read as a sibling of the reference, so
+// the reference keeps the aesthetic slots (page, text, accent, type) and the kit
+// keeps the client's IDENTITY slots (the primary brand colour used for the brand
+// band and logo lockups). With no reference chosen the kit still wins outright.
+const HAS_REFERENCE = Boolean(site.reference_style || site.reference_style_url);
+const KIT_YIELDS_TO_REFERENCE = new Set([
+  "surface", "surface_soft", "ink", "ink_soft", "mute", "accent", "accent_dark",
+  "line", "line_soft",
+]);
+
 if (site.brand && typeof site.brand === "object") {
   for (const [key, value] of Object.entries(site.brand)) {
     if (
@@ -153,7 +170,22 @@ if (site.brand && typeof site.brand === "object") {
       value && typeof value === "object" && !Array.isArray(value) &&
       brand[key] && typeof brand[key] === "object" && !Array.isArray(brand[key])
     ) {
-      brand[key] = { ...brand[key], ...value };
+      let incoming = value;
+      if (HAS_REFERENCE && (key === "colors" || key === "fonts")) {
+        incoming = Object.fromEntries(
+          Object.entries(value).filter(([slot]) =>
+            key === "fonts" ? false : !KIT_YIELDS_TO_REFERENCE.has(slot),
+          ),
+        );
+        const dropped = Object.keys(value).filter((s) => !(s in incoming));
+        if (dropped.length) {
+          console.log(
+            `[generate-pages] reference "${site.reference_style_url || site.reference_style}" owns the aesthetic; ` +
+            `brand-kit ${key} deferred for: ${dropped.join(", ")}`,
+          );
+        }
+      }
+      brand[key] = { ...brand[key], ...incoming };
     } else {
       brand[key] = value;
     }
