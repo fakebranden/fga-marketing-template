@@ -52,6 +52,44 @@ jobs:
           token: ${{ secrets.CROSS_REPO_PAT }}
           fetch-depth: 0
 
+      # A client repo is spawned from the template ONCE and then never updated,
+      # so without this step it stays frozen at whatever template commit created
+      # it: the build runs the client repo's own copy of scripts/ and src/. That
+      # meant no template fix could ever reach an already-generated site — the
+      # 2026-07-24 WCAG AA contrast enforcement landed in the template and had
+      # literally no effect on franchi-law's rebuild, which is how this was
+      # found. Re-syncing here makes the template the single source of truth for
+      # every build, so compliance and pipeline fixes roll out fleet-wide.
+      #
+      # brand-config.json is the ONLY client-owned file: generate-pages.mjs
+      # writes nothing else (it never touches src/app/**.tsx — see its header),
+      # so excluding it is sufficient to preserve per-client content.
+      - name: Checkout template (pipeline source of truth)
+        uses: actions/checkout@v4
+        with:
+          repository: fakebranden/fga-marketing-template
+          ref: main
+          token: ${{ secrets.CROSS_REPO_PAT }}
+          path: _template
+          fetch-depth: 1
+
+      - name: Sync template-owned files into the client repo
+        run: |
+          set -euo pipefail
+          # No --delete: a stale leftover is harmless, whereas deleting an asset
+          # the template does not know about is not recoverable in-run.
+          rsync -a \
+            --exclude '.git/' \
+            --exclude '.github/' \
+            --exclude 'node_modules/' \
+            --exclude 'brand-config.json' \
+            --exclude 'site.json' \
+            --exclude '_skill/' \
+            --exclude '_template/' \
+            _template/ ./
+          rm -rf _template
+          echo "template synced · pipeline scripts and substrate are now at template@main"
+
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
