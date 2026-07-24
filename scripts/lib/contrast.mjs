@@ -231,11 +231,31 @@ export function enforcePaletteContrast(input) {
   return colors;
 }
 
-/** Every rendered pair that still falls short. Empty array === AA clean. */
-export function auditPalette(colors) {
+// What the stylesheet used to put on a colored background before on_accent /
+// on_primary existed. Only used to MEASURE a pre-enforcement palette: without
+// it, auditPalette silently skips those pairs (the token is undefined) and
+// cheerfully reports "0 below AA" for a palette whose buttons were unreadable.
+const LEGACY_FALLBACKS = {
+  on_accent: ["accent_dark", "surface"],
+  on_primary: ["surface"],
+};
+
+/**
+ * Every rendered pair that still falls short. Empty array === AA clean.
+ *
+ * Pass { legacy: true } to measure a palette that has not been through
+ * enforcement yet: missing on_* tokens resolve to what the old CSS hardcoded,
+ * so the "before" number reflects what would actually have shipped.
+ */
+export function auditPalette(colors, { legacy = false } = {}) {
   const out = [];
   for (const pair of RENDERED_PAIRS) {
-    const fg = colors[pair.fg];
+    let fg = colors[pair.fg];
+    if (!fg && legacy) {
+      for (const key of LEGACY_FALLBACKS[pair.fg] ?? []) {
+        if (colors[key]) { fg = colors[key]; break; }
+      }
+    }
     const bg = colors[pair.bg];
     if (!fg || !bg) continue;
     const ratio = contrastRatio(fg, bg);

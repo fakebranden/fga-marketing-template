@@ -123,6 +123,17 @@ describe("enforcePaletteContrast", () => {
     expect(contrastRatio(LIVE_FRANCHI.accent_dark, LIVE_FRANCHI.accent)).toBeLessThan(1.5);
   });
 
+  it("legacy mode measures a pre-enforcement palette honestly", () => {
+    // Without the legacy fallbacks, on_accent/on_primary are undefined on an
+    // un-enforced palette and auditPalette skips those pairs — reporting a
+    // clean bill of health for the exact buttons that were unreadable.
+    const naive = auditPalette(LIVE_FRANCHI);
+    const honest = auditPalette(LIVE_FRANCHI, { legacy: true });
+    expect(naive.length).toBe(0);
+    expect(honest.length).toBeGreaterThan(0);
+    expect(honest.some((f) => f.fg === "on_accent")).toBe(true);
+  });
+
   it("derives on_accent and on_primary", () => {
     const fixed = enforcePaletteContrast(LIVE_FRANCHI);
     expect(fixed.on_accent).toMatch(/^#[0-9a-f]{6}$/);

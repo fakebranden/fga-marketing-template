@@ -180,7 +180,7 @@ if (site.ghl && typeof site.ghl === "object") {
 // on_primary for colored backgrounds. See scripts/lib/contrast.mjs for the audit
 // that motivated this (174/324 rendered pairs were below AA before it existed).
 if (brand.colors && typeof brand.colors === "object") {
-  const before = auditPalette(brand.colors);
+  const before = auditPalette(brand.colors, { legacy: true });
   brand.colors = enforcePaletteContrast(brand.colors);
   const after = auditPalette(brand.colors);
   if (before.length) {
