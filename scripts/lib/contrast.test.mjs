@@ -87,6 +87,59 @@ describe("onColor", () => {
   });
 });
 
+describe("accent_text (accent used as TEXT, not as a fill)", () => {
+  it("derives a readable accent shade for the template default amber", () => {
+    // #F59E0B on #F8FAFC is 2.05:1 — fine as a button fill, unreadable as an
+    // 11px required-field marker or a consent-block link.
+    const out = enforcePaletteContrast({
+      surface: "#FFFFFF", surface_soft: "#F8FAFC", ink: "#0F172A",
+      accent: "#F59E0B", accent_dark: "#E2680B",
+    });
+    expect(contrastRatio("#F59E0B", "#F8FAFC")).toBeLessThan(3);
+    expect(contrastRatio(out.accent_text, out.surface)).toBeGreaterThanOrEqual(AA);
+    expect(contrastRatio(out.accent_text, out.surface_soft)).toBeGreaterThanOrEqual(AA);
+  });
+
+  it("leaves the fill accent untouched", () => {
+    const out = enforcePaletteContrast({
+      surface: "#FFFFFF", surface_soft: "#F8FAFC", ink: "#0F172A",
+      accent: "#F59E0B", accent_dark: "#E2680B",
+    });
+    expect(out.accent).toBe("#F59E0B");
+  });
+
+  it("handles the franchi gold that failed on the live lander", () => {
+    const out = enforcePaletteContrast({
+      surface: "#f1ece0", surface_soft: "#e5decc", ink: "#1f3a2e",
+      accent: "#9f8753", accent_dark: "#867245",
+    });
+    expect(contrastRatio("#9f8753", "#f1ece0")).toBeLessThan(3);
+    expect(contrastRatio(out.accent_text, out.surface)).toBeGreaterThanOrEqual(AA);
+  });
+
+  it("works on a dark reference surface too", () => {
+    const out = enforcePaletteContrast({
+      surface: "#08090a", surface_soft: "#141619", ink: "#d0d6e0",
+      accent: "#5e6ad2", accent_dark: "#4b56b8",
+    });
+    expect(contrastRatio(out.accent_text, out.surface)).toBeGreaterThanOrEqual(AA);
+    expect(contrastRatio(out.accent_text, out.surface_soft)).toBeGreaterThanOrEqual(AA);
+  });
+
+  it("is idempotent", () => {
+    const once = enforcePaletteContrast({
+      surface: "#FFFFFF", surface_soft: "#F8FAFC", ink: "#0F172A",
+      accent: "#F59E0B", accent_dark: "#E2680B",
+    });
+    expect(enforcePaletteContrast(once).accent_text).toBe(once.accent_text);
+  });
+
+  it("is covered by auditPalette, so a regression is measurable", () => {
+    const bad = { surface: "#FFFFFF", surface_soft: "#F8FAFC", accent_text: "#F59E0B" };
+    expect(auditPalette(bad).some((f) => f.label.includes("accent-coloured text"))).toBe(true);
+  });
+});
+
 describe("enforcePaletteContrast", () => {
   const TEMPLATE_DEFAULT = {
     primary: "#0F172A", primary_dark: "#020617", primary_soft: "#E2E8F0",

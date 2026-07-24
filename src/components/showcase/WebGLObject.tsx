@@ -33,11 +33,14 @@ export function WebGLObject() {
       <directionalLight position={[4, 4, 5]} intensity={2.2} color="#ffffff" />
       <pointLight position={[-5, -2, -3]} intensity={4} color="#f6eb1e" />
       <Float speed={1.3} rotationIntensity={0.35} floatIntensity={0.7} position={[0, 0.1, 0]}>
-        <mesh ref={mesh} scale={1.5}>
+        {/* Scale is tuned so the object fits INSIDE its column without cropping.
+            The R3F camera frames the container vertically, so a tall narrow
+            column crops a wide object; 1.05 keeps the silhouette whole. */}
+        <mesh ref={mesh} scale={1.05}>
           <icosahedronGeometry args={[1, 18]} />
           <MeshDistortMaterial color="#101015" roughness={0.18} metalness={0.92} distort={0.34} speed={1.5} envMapIntensity={1.3} />
         </mesh>
-        <mesh ref={wire} scale={1.57}>
+        <mesh ref={wire} scale={1.1}>
           <icosahedronGeometry args={[1, 3]} />
           <meshBasicMaterial color="#f6eb1e" wireframe transparent opacity={0.22} />
         </mesh>

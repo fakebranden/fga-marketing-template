@@ -108,7 +108,7 @@ const FloatingIconsHero = React.forwardRef<
         ))}
       </div>
       <div className="relative z-10 mx-auto max-w-3xl px-4 text-center">
-        {kicker && <p className="t-mono mb-7" style={{ color: "var(--volt)" }}>{kicker}</p>}
+        {kicker && <p className="t-mono mb-7" style={{ color: "var(--ink-soft)" }}>{kicker}</p>}
         <h2 className="t-display" style={{ fontSize: "clamp(2.4rem, 6vw, 5.5rem)" }}>{title}</h2>
         <p className="mx-auto mt-7 max-w-xl t-lead" style={{ color: "var(--ink-soft)" }}>{subtitle}</p>
         <div className="mt-10">

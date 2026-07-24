@@ -76,7 +76,7 @@ export function SotyHome({ booking }: { booking: React.ReactNode }) {
             <div className="flex w-max" style={{ animation: "sc-marquee 40s linear infinite" }}>
               {[...marquee, ...marquee, ...marquee].map((n, i) => (
                 <span key={i} className="flex items-center gap-6 px-6 font-[family-name:var(--font-display)] font-semibold uppercase" style={{ fontSize: "1.4rem", letterSpacing: "-0.01em", color: "var(--ink-faint)" }}>
-                  {n}<span style={{ color: "var(--volt)" }}>&bull;</span>
+                  {n}<span aria-hidden data-legibility-ignore style={{ color: "var(--volt)" }}>&bull;</span>
                 </span>
               ))}
             </div>

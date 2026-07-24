@@ -27,6 +27,7 @@
      scripts/lib/contrast.mjs). generate-pages.mjs recomputes both per client so
      every generated palette clears WCAG AA. */
   --on-accent: #2E2415;
+  --accent-text: #8A5A06;
   --on-primary: #9FA3AC;
   --surface: #FFFFFF;
   --surface-soft: #F8FAFC;
@@ -199,6 +200,9 @@ body {
  * ───────────────────────────────────────────────────────────────────────── */
 :root {
   --volt: var(--accent);
+  /* accent as TEXT on the page surface — never the raw accent, which is a fill
+     colour and routinely misses AA at body/label sizes. */
+  --volt-text: var(--accent-text, var(--ink));
   --ink-faint: var(--mute);
   --paper-2: var(--surface-soft);
   --line-strong: var(--mute);
@@ -211,7 +215,7 @@ body {
   --gutter: clamp(0.75rem, 2vw, 1.5rem);
 }
 
-.t-display { font-family: var(--font-display); font-weight: 700; font-size: clamp(2.6rem, 8vw, 7.5rem); line-height: 0.95; letter-spacing: 0.005em; text-transform: uppercase; text-wrap: balance; }
+.t-display { font-family: var(--font-display); font-weight: 700; font-size: clamp(2.4rem, 6vw, 6rem); line-height: 0.95; letter-spacing: 0.005em; text-transform: uppercase; text-wrap: balance; }
 .t-display em, .t-accent { font-style: normal; background: var(--volt); color: var(--on-accent, #2E2415); padding: 0 0.1em; box-decoration-break: clone; -webkit-box-decoration-break: clone; }
 .t-h2 { font-family: var(--font-display); font-weight: 700; font-size: clamp(2.1rem, 5.6vw, 5rem); line-height: 0.98; letter-spacing: -0.01em; text-transform: uppercase; text-wrap: balance; }
 .t-h3 { font-family: var(--font-display); font-weight: 700; font-size: clamp(1.45rem, 2.4vw, 2.2rem); line-height: 1.04; text-transform: uppercase; }

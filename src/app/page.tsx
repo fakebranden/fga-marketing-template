@@ -104,9 +104,9 @@ export default function HomePage() {
               <p className="t-body" style={{ fontSize: "0.78rem", maxWidth: "none" }}>
                 By submitting, you consent to be contacted about your request. We&apos;ll never share your
                 info with third parties or affiliates for their marketing. See our{" "}
-                <a href="/privacy" className="underline" style={{ color: "var(--volt)" }}>Privacy Policy</a>
+                <a href="/privacy" className="underline" style={{ color: "var(--volt-text)" }}>Privacy Policy</a>
                 {" "}and{" "}
-                <a href="/terms" className="underline" style={{ color: "var(--volt)" }}>Terms</a>.
+                <a href="/terms" className="underline" style={{ color: "var(--volt-text)" }}>Terms</a>.
               </p>
             </form>
             )}
@@ -218,7 +218,7 @@ function FormField({
     <div>
       <label htmlFor={name} className="t-mono mb-2 block" style={{ color: "var(--ink)" }}>
         {label}
-        {required && <span style={{ color: "var(--volt)" }}> *</span>}
+        {required && <span style={{ color: "var(--volt-text)" }}> *</span>}
       </label>
       <input
         id={name}
@@ -250,7 +250,7 @@ function SelectField({
     <div>
       <label htmlFor={name} className="t-mono mb-2 block" style={{ color: "var(--ink)" }}>
         {label}
-        {required && <span style={{ color: "var(--volt)" }}> *</span>}
+        {required && <span style={{ color: "var(--volt-text)" }}> *</span>}
       </label>
       <select
         id={name}

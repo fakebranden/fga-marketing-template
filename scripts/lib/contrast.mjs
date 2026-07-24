@@ -190,6 +190,8 @@ export const RENDERED_PAIRS = [
   { label: "text on accent hover", fg: "on_accent", bg: "accent_dark", min: 4.5 },
   { label: "text on brand band", fg: "on_primary", bg: "primary", min: 4.5 },
   { label: "text on dark band", fg: "on_primary", bg: "primary_dark", min: 4.5 },
+  { label: "accent-coloured text", fg: "accent_text", bg: "surface", min: 4.5 },
+  { label: "accent-coloured text on alt section", fg: "accent_text", bg: "surface_soft", min: 4.5 },
 ];
 
 /**
@@ -255,6 +257,15 @@ export function enforcePaletteContrast(input) {
   // up front is unsatisfiable for a mid-tone pair (amber #F59E0B wants dark
   // text, its hover #B45309 wants light text, and nothing clears both), so the
   // text is derived from the accent alone and the hover shade yields to it.
+  // The accent is also used as small TEXT on the page surface (required-field
+  // markers, the consent block's Privacy/Terms links, kickers). A mid-tone
+  // accent that is perfect as a button fill is nowhere near AA as 11px type:
+  // the template default amber #F59E0B measures 2.05:1 on #F8FAFC. accent_text
+  // is the same hue pulled until it clears 4.5:1, so accent-coloured text has a
+  // token to use instead of the fill colour.
+  if (colors.accent && surfaces.length) {
+    colors.accent_text = ensureContrast(colors.accent, surfaces, 4.5);
+  }
   if (colors.accent) {
     colors.on_accent = onColor(colors.accent);
     if (colors.accent_dark) {

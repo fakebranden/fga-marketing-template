@@ -12,7 +12,8 @@
     "generate:pages": "node scripts/generate-pages.mjs",
     "deploy:trigger": "node scripts/trigger-vercel-deploy.mjs",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "check:legibility": "node scripts/check-text-legibility.mjs"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.100.0",

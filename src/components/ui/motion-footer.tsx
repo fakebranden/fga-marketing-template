@@ -69,8 +69,7 @@ const STYLES = `
 }
 .footer-text-glow {
   font-family: var(--font-display), sans-serif;
-  background: linear-gradient(180deg, var(--foreground) 0%, color-mix(in oklch, var(--foreground) 45%, transparent) 100%);
-  -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;
+  color: var(--foreground);
 }
 @media (prefers-reduced-motion: reduce) { .animate-footer-breathe, .animate-footer-scroll-marquee { animation: none; } }
 `;
@@ -111,11 +110,11 @@ MagneticButton.displayName = "FooterMagneticButton";
 
 const MarqueeItem = () => (
   <div className="flex items-center space-x-10 px-6 font-[family-name:var(--font-mono)] uppercase">
-    <span>Premium design</span> <span style={{ color: "var(--volt)" }}>✦</span>
-    <span>Mobile-first</span> <span style={{ color: "var(--volt)" }}>✦</span>
-    <span>Book online</span> <span style={{ color: "var(--volt)" }}>✦</span>
-    <span>Built to convert</span> <span style={{ color: "var(--volt)" }}>✦</span>
-    <span>Found on Google</span> <span style={{ color: "var(--volt)" }}>✦</span>
+    <span>Premium design</span> <span aria-hidden data-legibility-ignore style={{ color: "var(--volt)" }}>✦</span>
+    <span>Mobile-first</span> <span aria-hidden data-legibility-ignore style={{ color: "var(--volt)" }}>✦</span>
+    <span>Book online</span> <span aria-hidden data-legibility-ignore style={{ color: "var(--volt)" }}>✦</span>
+    <span>Built to convert</span> <span aria-hidden data-legibility-ignore style={{ color: "var(--volt)" }}>✦</span>
+    <span>Found on Google</span> <span aria-hidden data-legibility-ignore style={{ color: "var(--volt)" }}>✦</span>
   </div>
 );
 
@@ -152,7 +151,7 @@ export function CinematicFooter() {
 
           {/* center content */}
           <div className="relative z-10 mx-auto mt-20 flex w-full max-w-5xl flex-1 flex-col items-center justify-center px-6">
-            <h2 ref={headingRef} className="footer-text-glow mb-12 text-center uppercase" style={{ fontSize: "clamp(2.6rem,8vw,7rem)", lineHeight: 0.92, letterSpacing: "-0.01em" }}>Let&rsquo;s build yours.</h2>
+            <h2 ref={headingRef} className="footer-text-glow mb-12 text-center uppercase" style={{ fontSize: "clamp(2.4rem,6vw,6rem)", lineHeight: 0.92, letterSpacing: "-0.01em" }}>Let&rsquo;s build yours.</h2>
             <div ref={linksRef} className="flex w-full flex-col items-center gap-6">
               <div className="flex w-full flex-wrap justify-center gap-4">
                 <MagneticButton as="button" onClick={openBooking} className="footer-glass-pill group flex items-center gap-3 rounded-full px-10 py-5 text-sm font-bold md:text-base" style={{ background: "var(--volt)", color: "#141204", borderColor: "transparent" }}>
