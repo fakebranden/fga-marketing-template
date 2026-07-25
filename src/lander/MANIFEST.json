@@ -2,9 +2,10 @@
   "version": 1,
   "files": {
     "controls.ts": "a7448c052cc5c46b6220af99689ec7575be02261574b146d7814046bf33c9e37",
-    "ops.ts": "732cdd84df010dffd66e1df0784dd1bb71c65b26726439e03141bb426e3000e9",
+    "ops.ts": "f7f16958da8ac77869a8bf7082ec8bac321af53f67d3c11c304b700bda35e0f6",
     "registry.tsx": "8dcd81400257ceccaeba3601fb8885c51c135697e9a352ff034d466c58995759",
-    "schema.ts": "5dc889d553938b20c0b2d2d5ef66ac87684ab0973744f304a604e39c9350f255",
-    "sections.tsx": "ab3c8430fa8c37e1c39dc3c5c9635aafd83e281dd37550fac3e07a8427ad7d64"
+    "schema.ts": "87cf27e00dfd13b748f1049d85da86e24b18f8e4ccdc4fb8e9a900bc819a3a42",
+    "sections.tsx": "ab3c8430fa8c37e1c39dc3c5c9635aafd83e281dd37550fac3e07a8427ad7d64",
+    "variants.ts": "2278295e926a1a987f313296fb2ffc370cdf808261c4159f10b241e5fee594ee"
   }
 }

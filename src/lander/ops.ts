@@ -71,7 +71,35 @@ export function swapSectionKind(spec: LanderSpec, id: string, kind: SectionKind)
     next[key] = value;
   }
   const sections = [...spec.sections];
+  // The new object deliberately carries NO variant: a variant is an implementation
+  // of one specific kind (a 21st.dev hero is not a cta), so swapping kind resets to
+  // the new kind's built-in.
   sections[idx] = { id, kind, props: next };
+  return { ...spec, sections };
+}
+
+/**
+ * Set (or clear) a section's visual VARIANT without touching its kind or copy.
+ *
+ * This is how "swap this section for a 21st.dev component" is expressed: the kind
+ * (the content contract) is unchanged, so the props carry over untouched; only the
+ * implementation that renders them changes. Passing undefined, "" or "default"
+ * clears back to the built-in. Booking is refused — its A2P form is a fixed
+ * contract and never a 21st.dev component. The op does not check that the variant
+ * exists in the registry: an unknown id is stored and degrades to the built-in at
+ * render time, matching the forward-compat contract on `kind`.
+ */
+export function setSectionVariant(spec: LanderSpec, id: string, variant: string | undefined): LanderSpec {
+  const idx = spec.sections.findIndex((s) => s.id === id);
+  if (idx < 0) return spec;
+  const current = spec.sections[idx];
+  if (LOCKED_SECTIONS.includes(current.kind)) return spec;
+  const normalized = variant && variant.trim() && variant.trim() !== "default" ? variant.trim() : undefined;
+  if ((current.variant ?? undefined) === normalized) return spec;
+  const next: SectionInstance = { id: current.id, kind: current.kind, props: current.props };
+  if (normalized) next.variant = normalized;
+  const sections = [...spec.sections];
+  sections[idx] = next;
   return { ...spec, sections };
 }
 

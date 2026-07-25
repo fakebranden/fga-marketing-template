@@ -14,7 +14,11 @@ import { SECTION_CONTROLS, SECTION_LABELS, LOCKED_SECTIONS, type Control } from 
 import {
   addSection, removeSection, moveSection, swapSectionKind, setField,
   addListItem, removeListItem, moveListItem, commitSpec, newSectionId,
+  setSectionVariant,
 } from "./ops";
+import {
+  SECTION_VARIANTS, DEFAULT_VARIANT, variantsFor, findVariant, isExternalVariant,
+} from "./variants";
 
 function baseSpec(): LanderSpec {
   return {
@@ -366,5 +370,137 @@ describe("locked sections", () => {
   });
   it("nothing else is", () => {
     expect(LOCKED_SECTIONS).toHaveLength(1);
+  });
+});
+
+describe("section variant — spec threading", () => {
+  it("parseSpec carries a non-empty variant through", () => {
+    const spec = baseSpec();
+    spec.sections[0] = { ...spec.sections[0], variant: "orb" } as typeof spec.sections[0];
+    const r = parseSpec(spec);
+    expect(r.ok).toBe(true);
+    if (r.ok) expect(r.spec.sections[0].variant).toBe("orb");
+  });
+
+  it("normalises an empty variant to absent rather than dropping the section", () => {
+    const spec = baseSpec();
+    spec.sections[0] = { ...spec.sections[0], variant: "   " } as typeof spec.sections[0];
+    const r = parseSpec(spec);
+    expect(r.ok).toBe(true);
+    if (r.ok) {
+      expect(r.spec.sections[0].id).toBe("hero-1"); // NOT dropped
+      expect(r.spec.sections[0].variant).toBeUndefined();
+    }
+  });
+
+  it("keeps an UNKNOWN variant string (degrades at render, never at parse)", () => {
+    const spec = baseSpec();
+    spec.sections[0] = { ...spec.sections[0], variant: "not-a-real-variant" } as typeof spec.sections[0];
+    const r = parseSpec(spec);
+    expect(r.ok).toBe(true);
+    if (r.ok) expect(r.spec.sections[0].variant).toBe("not-a-real-variant");
+  });
+
+  it("drops a section whose variant blows the length bound", () => {
+    const spec = baseSpec();
+    spec.sections[0] = { ...spec.sections[0], variant: "x".repeat(200) } as typeof spec.sections[0];
+    const r = parseSpec(spec);
+    if (r.ok) expect(r.spec.sections.map((s) => s.id)).not.toContain("hero-1");
+  });
+
+  it("a section with no variant has none (the default is absence, not a value)", () => {
+    const r = parseSpec(baseSpec());
+    expect(r.ok).toBe(true);
+    if (r.ok) expect(r.spec.sections.every((s) => s.variant === undefined)).toBe(true);
+  });
+});
+
+describe("setSectionVariant", () => {
+  it("sets a variant without touching kind or copy", () => {
+    let spec = baseSpec();
+    spec = setField(spec, "hero-1", "headline", "Kept");
+    const next = setSectionVariant(spec, "hero-1", "orb");
+    const hero = next.sections.find((s) => s.id === "hero-1");
+    expect(hero?.variant).toBe("orb");
+    expect(hero?.kind).toBe("hero");
+    expect((hero?.props as { headline: string }).headline).toBe("Kept");
+  });
+
+  it("clears back to the built-in on undefined, empty or 'default'", () => {
+    const withVariant = setSectionVariant(baseSpec(), "hero-1", "orb");
+    for (const clearer of [undefined, "", "  ", DEFAULT_VARIANT]) {
+      const cleared = setSectionVariant(withVariant, "hero-1", clearer);
+      expect(cleared.sections.find((s) => s.id === "hero-1")?.variant).toBeUndefined();
+    }
+  });
+
+  it("REFUSES to put a variant on the locked booking section", () => {
+    const next = setSectionVariant(baseSpec(), "booking-1", "orb");
+    expect(next.sections.find((s) => s.id === "booking-1")?.variant).toBeUndefined();
+    expect(next).toEqual(baseSpec());
+  });
+
+  it("is a no-op for an unknown id or a variant already set", () => {
+    expect(setSectionVariant(baseSpec(), "nope", "orb")).toEqual(baseSpec());
+    const once = setSectionVariant(baseSpec(), "hero-1", "orb");
+    expect(setSectionVariant(once, "hero-1", "orb")).toBe(once); // same reference, no new spec
+  });
+
+  it("does not mutate the input spec", () => {
+    const spec = baseSpec();
+    const before = JSON.stringify(spec);
+    setSectionVariant(spec, "hero-1", "orb");
+    expect(JSON.stringify(spec)).toBe(before);
+  });
+
+  it("swapping kind drops any variant (a hero variant is meaningless on a cta)", () => {
+    const withVariant = setSectionVariant(baseSpec(), "hero-1", "orb");
+    const swapped = swapSectionKind(withVariant, "hero-1", "cta");
+    expect(swapped.sections.find((s) => s.id === "hero-1")?.variant).toBeUndefined();
+  });
+
+  it("produces a still-valid spec", () => {
+    expect(parseSpec(setSectionVariant(baseSpec(), "hero-1", "orb")).ok).toBe(true);
+  });
+});
+
+describe("variants metadata", () => {
+  it("booking is never offered a variant (A2P form is a fixed contract)", () => {
+    expect(SECTION_VARIANTS.booking).toBeUndefined();
+    expect(variantsFor("booking")).toEqual([]);
+  });
+
+  it("findVariant returns null for the built-in and for unknown ids", () => {
+    expect(findVariant("hero", undefined)).toBeNull();
+    expect(findVariant("hero", DEFAULT_VARIANT)).toBeNull();
+    expect(findVariant("hero", "nope")).toBeNull();
+  });
+
+  it("isExternalVariant is false for the built-in and unknown ids", () => {
+    expect(isExternalVariant("hero", undefined)).toBe(false);
+    expect(isExternalVariant("hero", "nope")).toBe(false);
+  });
+
+  it("every declared variant has an id, a name and a source, and no id is 'default'", () => {
+    for (const kind of SECTION_KINDS) {
+      const ids = new Set<string>();
+      for (const v of variantsFor(kind)) {
+        expect(v.id, `${kind} variant id`).toBeTruthy();
+        expect(v.id).not.toBe(DEFAULT_VARIANT);
+        expect(v.name, `${kind}/${v.id} name`).toBeTruthy();
+        expect(v.source, `${kind}/${v.id} source`).toBeTruthy();
+        expect(ids.has(v.id), `${kind}: duplicate variant id ${v.id}`).toBe(false);
+        ids.add(v.id);
+      }
+    }
+  });
+
+  it("every declared variant resolves and reports its external-ness consistently", () => {
+    for (const kind of SECTION_KINDS) {
+      for (const v of variantsFor(kind)) {
+        expect(findVariant(kind, v.id)).toBe(v);
+        expect(isExternalVariant(kind, v.id)).toBe(v.external);
+      }
+    }
   });
 });

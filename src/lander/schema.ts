@@ -163,11 +163,23 @@ export const SECTION_SCHEMAS = {
 export const SectionInstanceSchema = z.object({
   id: z.string().trim().min(1).max(64),
   kind: z.string().trim().min(1).max(64),
+  // Optional visual VARIANT: an alternative implementation of the same kind that
+  // renders the SAME props, so swapping to it keeps the operator's copy. Absent
+  // (or empty) means the built-in pure component. A non-default value names
+  // another implementation — today, a real 21st.dev component that carries heavy
+  // deps and therefore lives template-only and previews via an iframe, never in
+  // the hub bundle (see variants.ts). Kept a bounded STRING, not an enum, for the
+  // same forward-compat reason `kind` is: a client repo on an older template must
+  // degrade an unrecognised variant to its built-in, never white-screen. An empty
+  // string is normalised to absent by parseSpec so a stray "" cannot drop a
+  // section.
+  variant: z.string().trim().max(120).optional(),
   props: z.record(z.unknown()),
 });
 export type SectionInstance = {
   id: string;
   kind: SectionKind;
+  variant?: string;
   props: Record<string, unknown>;
 };
 
@@ -225,7 +237,13 @@ export function parseSpec(input: unknown): ParseResult {
       id = `${id}-${n}`;
     }
     seen.add(id);
-    sections.push({ id, kind: raw.kind as SectionKind, props: parsed.data as Record<string, unknown> });
+    // Carry a non-empty variant through. zod has already trimmed it; an empty
+    // string is treated as absent (the built-in) rather than stored, so a section
+    // is never dropped over a meaningless variant and the "no variant" state has
+    // exactly one representation.
+    const section: SectionInstance = { id, kind: raw.kind as SectionKind, props: parsed.data as Record<string, unknown> };
+    if (raw.variant) section.variant = raw.variant;
+    sections.push(section);
   }
 
   if (sections.length === 0) return { ok: false, errors: ["no valid sections"] };
