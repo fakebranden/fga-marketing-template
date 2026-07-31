@@ -105,7 +105,23 @@ export function googleFontsHref(fonts: BrandFonts): string | null {
     if (f && !families.includes(f)) families.push(f);
   }
   if (families.length === 0) return null;
-  const params = families.map((f) => `family=${encodeURIComponent(f).replace(/%20/g, "+")}`);
+  // Ask for the WEIGHTS AND ITALICS, not just the family. A bare
+  // `family=Barlow+Condensed` returns regular 400 upright only, so any design
+  // whose display face is set in a heavy or italic cut silently rendered as a
+  // synthesised faux-bold / faux-oblique. That is what stopped the
+  // reference-style type treatment landing on the first Dyre Athletics build:
+  // the reference sets its display face in Barlow Condensed italic 500-600 and
+  // the browser had no italic to use.
+  //
+  // The axis list is the safe intersection: every Google family ships 400 and
+  // 700, and `ital,wght` is accepted for families with a true italic. Verified
+  // 2026-07-30 that Barlow Condensed returns 6 italic faces, and that a family
+  // with NO italic and a single weight (Anton) still returns 200 rather than
+  // rejecting the request.
+  const AXES = "ital,wght@0,400;0,500;0,600;0,700;0,800;0,900;1,400;1,500;1,600;1,700;1,800;1,900";
+  const params = families.map(
+    (f) => `family=${encodeURIComponent(f).replace(/%20/g, "+")}:${AXES}`,
+  );
   return `https://fonts.googleapis.com/css2?${params.join("&")}&display=swap`;
 }
 

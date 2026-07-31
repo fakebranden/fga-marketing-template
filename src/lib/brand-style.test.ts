@@ -2,7 +2,9 @@
 // Invariants: valid hex colors become the right CSS var names; non-hex is
 // dropped (template default stands in); the default Fraunces/Inter pairing emits
 // NO font override or Google link (next/font owns it); a custom pairing emits
-// both, family-only (no weight axis that could 400).
+// both, WITH the ital+wght axes (a family-only request returns upright 400
+// only, which silently turned every italic or heavy display cut into a
+// synthesised fake).
 import { describe, expect, it } from "vitest";
 import {
   brandRadiusVars,
@@ -65,15 +67,19 @@ describe("googleFontsHref", () => {
   it("is null for the default pairing", () => {
     expect(googleFontsHref({ display: "Fraunces", body: "Inter" })).toBeNull();
   });
-  it("requests both families, url-encoded with +, no weight axis", () => {
+  it("requests both families, url-encoded with +, carrying the ital+wght axes", () => {
+    // Regression 2026-07-30: this used to assert family-only and was named
+    // "no weight axis", so it pinned the bug in place. Google returns upright
+    // 400 for a bare family, so a display face set in italic (the Dyre
+    // Athletics reference style) rendered as a faux-oblique.
     const href = googleFontsHref({ display: "Anton", body: "Playfair Display" });
     expect(href).toBe(
-      "https://fonts.googleapis.com/css2?family=Anton&family=Playfair+Display&display=swap",
+      "https://fonts.googleapis.com/css2?family=Anton:ital,wght@0,400;0,500;0,600;0,700;0,800;0,900;1,400;1,500;1,600;1,700;1,800;1,900&family=Playfair+Display:ital,wght@0,400;0,500;0,600;0,700;0,800;0,900;1,400;1,500;1,600;1,700;1,800;1,900&display=swap",
     );
   });
   it("de-dupes when display and body are the same family", () => {
     expect(googleFontsHref({ display: "Poppins", body: "Poppins" })).toBe(
-      "https://fonts.googleapis.com/css2?family=Poppins&display=swap",
+      "https://fonts.googleapis.com/css2?family=Poppins:ital,wght@0,400;0,500;0,600;0,700;0,800;0,900;1,400;1,500;1,600;1,700;1,800;1,900&display=swap",
     );
   });
 });
