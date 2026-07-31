@@ -165,6 +165,13 @@ jobs:
       - name: Enforce A2P compliance (build-blocking)
         run: node scripts/enforce-a2p.mjs
 
+      # Runs HERE and not in `npm run build`, because the template repo itself
+      # has no canonical URL of its own — only a GENERATED client site does.
+      # Catches the case where generate-pages.mjs could not resolve one and the
+      # placeholder would otherwise ship as every page's <link rel="canonical">.
+      - name: Enforce a real canonical_url (build-blocking)
+        run: node scripts/enforce-canonical.mjs
+
       - name: Build (self-repairing — fixes one-off AI slips, then next build)
         run: node scripts/repair-build.mjs
 

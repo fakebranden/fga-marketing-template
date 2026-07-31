@@ -195,6 +195,52 @@ if (site.niche) brand.niche = site.niche;
 if (site.reference_style) brand.reference_style = site.reference_style;
 if (site.reference_style_url) brand.reference_style_url = site.reference_style_url;
 
+// ── canonical_url: the site's own address ────────────────────────────────────
+//
+// `brand.canonical_url` feeds seo.ts's canonical(), which feeds metadataBase,
+// <link rel="canonical">, og:url, the JSON-LD graph, robots.txt's Host and
+// Sitemap, and the address printed on /privacy and /terms.
+//
+// The template default is "https://example.com" and NOTHING was overwriting it:
+// the hub's brand facts come from the harvest brand KIT, and a site's URL is not
+// a brand-kit fact. So every generated site shipped
+// `<link rel="canonical" href="https://example.com">` on every page. Measured
+// live 2026-07-30 on dyre-athletics-marketing and franchi-law-marketing, both of
+// which also served `Sitemap: https://example.com/sitemap.xml`. A canonical
+// pointing at a domain we do not own tells Google the client's page is a
+// duplicate of someone else's, which can suppress indexing outright.
+//
+// The URL IS knowable here: site.json is the flat hub record, which carries the
+// attached custom domain, the live URL and the Vercel project. Precedence runs
+// most-real first, so a lander re-generated after its domain is attached
+// upgrades from the vercel.app URL to the client's own.
+function resolveCanonicalUrl() {
+  const clean = (u) => String(u).trim().replace(/\/+$/, "");
+  const withScheme = (u) => (/^https?:\/\//i.test(u) ? clean(u) : `https://${clean(u)}`);
+  if (site.custom_domain) return { url: withScheme(site.custom_domain), from: "custom_domain" };
+  if (site.live_url) return { url: withScheme(site.live_url), from: "live_url" };
+  if (site.vercel_project) {
+    return { url: `https://${clean(site.vercel_project)}.vercel.app`, from: "vercel_project" };
+  }
+  if (site.vercel_preview_url) return { url: withScheme(site.vercel_preview_url), from: "vercel_preview_url" };
+  return null;
+}
+const canonicalResolved = resolveCanonicalUrl();
+if (canonicalResolved) {
+  brand.canonical_url = canonicalResolved.url;
+  console.log(
+    `[generate-pages] canonical_url = ${brand.canonical_url} (from site.${canonicalResolved.from})`,
+  );
+} else {
+  // Nothing to resolve from. Leaving the placeholder would ship the very defect
+  // this block exists to stop, and the build gate below turns it into a loud
+  // failure rather than a silent SEO regression on a client's site.
+  console.error(
+    "[generate-pages] could not resolve canonical_url: site.json has no custom_domain, " +
+      "live_url, vercel_project or vercel_preview_url",
+  );
+}
+
 // G1 + G3b: fold the funnel wiring from the hub record into brand-config.ghl, so
 // the home page renders the operator's chosen form/calendar mode and the booking
 // form routes to the right sub-account. The API TOKEN is never in site.ghl (it

@@ -9,6 +9,7 @@
     "start": "next start",
     "lint": "eslint",
     "enforce:a2p": "node scripts/enforce-a2p.mjs",
+    "enforce:canonical": "node scripts/enforce-canonical.mjs",
     "generate:pages": "node scripts/generate-pages.mjs",
     "deploy:trigger": "node scripts/trigger-vercel-deploy.mjs",
     "test": "vitest run",
