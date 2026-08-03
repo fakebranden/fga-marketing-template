@@ -21,10 +21,51 @@ import Link from "next/link";
  *   tree as a <SmsConsent /> import. The enforce-a2p.mjs build script
  *   greps for tel inputs and fails the build if SmsConsent is missing.
  */
+
+/**
+ * The SMS Terms / Privacy links inside the consent sentence.
+ *
+ * `color: inherit` is LOAD-BEARING and is not a style preference. These two
+ * links were `var(--primary)`, which is a SURFACE/fill token, not a text
+ * token. On fga-marketing-site-dyre-athletics `colors.primary` (#0a0a0a) and
+ * `colors.surface_soft` (#0a0a0a) are the same value, so the links measured
+ * **1.00:1** against the block they sit on and the sentence shipped as
+ * "See our ⬛ and ⬛."
+ *
+ * That is an A2P exposure, not only a WCAG 1.4.3 failure: the carrier
+ * registration requires the SMS Terms and Privacy links to be present AND
+ * legible at the point of consent.
+ *
+ * Swapping to `var(--accent-text)` (what DYRE did locally) fixes that one
+ * client but is NOT structurally safe upstream. Measured against each live
+ * config's own `surface_soft` on 2026-08-03:
+ *
+ *   franchi-law   accent_text #705f3b → 4.62:1   (0.12 above the AA floor)
+ *   e2e-verify    accent_text #ec0200 → 4.59:1   (0.09 above the AA floor)
+ *   this template accent_text ABSENT → var() is invalid, colour undefined
+ *
+ * So `inherit` instead. It resolves to the `--ink` the wrapper below already
+ * declares on `--surface-soft`, which makes the links' contrast IDENTICAL to
+ * the contrast of the sentence containing them, by construction. A future
+ * client cannot give the links a contrast the surrounding prose does not
+ * already have, whatever their palette does. `enforce-a2p.mjs` gates that one
+ * remaining pairing (ink vs surface_soft) at build time.
+ *
+ * Because colour no longer distinguishes the links, they carry underline +
+ * weight instead, which is what WCAG 1.4.1 asks for anyway.
+ */
+const CONSENT_LINK_CLASS = "underline underline-offset-2 font-semibold";
+const CONSENT_LINK_STYLE = { color: "inherit" } as const;
+
 export function SmsConsent() {
   return (
     <div
-      className="rounded-md p-4 text-[13px] leading-relaxed"
+      // Corner follows the brand token instead of a hardcoded `rounded-md`
+      // (6px), which was a third corner value on a page whose buttons and pills
+      // are driven by --radius. One radius system per site.
+      // Presentation only — the consent PROSE below is carrier-matched and
+      // stays byte-identical.
+      className="rounded-[var(--radius,4px)] p-4 text-[13px] leading-relaxed"
       style={{
         background: "var(--surface-soft)",
         border: "1px solid var(--line)",
@@ -58,16 +99,16 @@ export function SmsConsent() {
           at any time, or <strong>HELP</strong> for assistance. See our{" "}
           <Link
             href="/terms"
-            className="underline"
-            style={{ color: "var(--primary)" }}
+            className={CONSENT_LINK_CLASS}
+            style={CONSENT_LINK_STYLE}
           >
             SMS Terms
           </Link>{" "}
           and{" "}
           <Link
             href="/privacy"
-            className="underline"
-            style={{ color: "var(--primary)" }}
+            className={CONSENT_LINK_CLASS}
+            style={CONSENT_LINK_STYLE}
           >
             Privacy Policy
           </Link>

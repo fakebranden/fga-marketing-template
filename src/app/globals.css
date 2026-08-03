@@ -126,7 +126,7 @@ body {
   font-weight: 800;
   font-size: 0.95rem;
   letter-spacing: 0.02em;
-  border-radius: 4px;
+  border-radius: var(--radius);
   border: 2px solid var(--ink);
   transition: background 150ms ease, transform 150ms ease;
 }
@@ -146,7 +146,7 @@ body {
   font-weight: 800;
   font-size: 0.95rem;
   letter-spacing: 0.02em;
-  border-radius: 4px;
+  border-radius: var(--radius);
   border: 2px solid var(--ink);
   transition: background 150ms ease, transform 150ms ease;
 }
@@ -166,7 +166,7 @@ body {
   font-weight: 800;
   font-size: 0.95rem;
   letter-spacing: 0.02em;
-  border-radius: 4px;
+  border-radius: var(--radius);
   border: 2px solid var(--surface);
   transition: background 150ms ease, color 150ms ease;
 }
@@ -179,7 +179,7 @@ body {
   display: inline-flex;
   align-items: center;
   padding: 0.3rem 0.85rem;
-  border-radius: 4px;
+  border-radius: var(--radius);
   font-family: var(--font-display);
   font-size: 0.78rem;
   font-style: italic;
@@ -212,8 +212,27 @@ body {
   --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
   /* Resolved from the reference: --radius is its corner treatment, --motion-scale
      its animation intensity. Both were previously computed and then dropped on
-     the floor, so every reference produced identical pills and identical timing. */
-  --radius: 9999px;
+     the floor, so every reference produced identical pills and identical timing.
+
+     --radius is the SINGLE corner system for the button/pill family: `.btn`,
+     `.btn-accent`, `.btn-primary`, `.btn-outline-white`, `.tag-pill` and the
+     SmsConsent block all read it. brand-config.json `radius` overrides it via
+     brandRadiusVars() on <html>; this value is only the standalone default for
+     a config that omits the field.
+
+     It was 9999px, and the four `.btn-*`/`.tag-pill` rules were hardcoded to
+     4px, so a radius-less config shipped TWO corner systems on one site:
+     measured 2026-08-03 on this template, `/` rendered `.btn.btn-primary` at
+     9999px while `/about` rendered `.btn-accent` at 4px and /privacy + /terms
+     rendered `.tag-pill` at 4px. 4px is the value the majority of that family
+     already shipped, so this default keeps the shipped look and makes it
+     consistent rather than choosing a new one. No live client is affected:
+     franchi-law (2px), kohler-law-group (2px), e2e-verify (8px) and
+     dyre-athletics (0px) all declare `radius`, so none of them ever reads this.
+
+     The cursor dot/ring below keep a literal 9999px on purpose — they are
+     circles, not corner treatment, and must not follow the brand token. */
+  --radius: 4px;
   --motion-scale: 1;
   --margin: clamp(1.25rem, 5vw, 5rem);
   --maxw: 92rem;
