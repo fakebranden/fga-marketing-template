@@ -14,7 +14,26 @@ export function SiteFooter() {
   // "/" ships the SOTY CinematicFooter; suppress the document-page footer there.
   if (pathname === "/") return null;
   return (
-    <footer className="text-white" style={{ background: "var(--ink)" }}>
+    // Ground is --primary-dark, NOT --ink. --ink is the page's TEXT token, and
+    // every child here is a `text-white/NN` utility, so painting the ground
+    // with a text token only works while that token happens to be dark. It
+    // inverts on a dark-ground brand: fga-marketing-site-dyre-athletics sets
+    // colors.ink #ffffff, and measured 2026-08-03 this footer shipped WHITE ON
+    // WHITE at 1.00:1 on /about, /privacy, /terms and /thanks. The tagline,
+    // Email, Phone, Service Area, the copyright AND both legal links were
+    // invisible on the live site.
+    //
+    // Invisible Terms + Privacy links are an A2P exposure, not only a WCAG
+    // 1.4.3 failure, which is the same reason SmsConsent's links matter.
+    //
+    // --primary-dark is a genuine surface/fill token and is dark in every
+    // palette shipped so far, so white text keeps working everywhere. White
+    // against it: dyre 21.0:1, franchi-law 19.08:1, kohler 10.46:1,
+    // e2e-verify 17.22:1, this template's default 20.17:1. The light-ground
+    // clients only looked right before because their --ink is near-black.
+    //
+    // Never paint a background with --ink, --ink-soft or --mute.
+    <footer className="text-white" style={{ background: "var(--primary-dark, var(--primary))" }}>
       <div className="mx-auto max-w-[1280px] px-4 sm:px-6 py-14 grid gap-10 md:grid-cols-[1.2fr_1fr_1fr]">
         <div>
           <BrandMark size="md" />

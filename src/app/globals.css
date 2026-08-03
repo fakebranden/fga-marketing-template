@@ -161,18 +161,28 @@ body {
   gap: 0.5rem;
   padding: 0.85rem 2rem;
   background: transparent;
-  color: var(--surface);
+  /* Literally white, not var(--surface). This class only ever sits on a dark
+     band (the /thanks hero is background: var(--primary)), and its own name
+     says white. It used --surface on the assumption that the page ground is
+     the light colour, which inverts on a dark-ground brand: dyre-athletics'
+     --surface is #000000, so measured 2026-08-03 this button rendered black on
+     near-black at 1.06:1 on its live /thanks. Literal white is correct on
+     every client, because the band underneath is --primary in all of them. */
+  color: #ffffff;
   font-family: var(--font-display);
   font-weight: 800;
   font-size: 0.95rem;
   letter-spacing: 0.02em;
   border-radius: var(--radius);
-  border: 2px solid var(--surface);
+  border: 2px solid #ffffff;
   transition: background 150ms ease, color 150ms ease;
 }
 .btn-outline-white:hover {
-  background: var(--surface);
-  color: var(--primary);
+  /* Inverts to a solid white chip. Was background var(--surface) + color
+     var(--primary), which on a dark-ground brand is #000000 on #0a0a0a: the
+     hover state was invisible for the same reason the rest state was. */
+  background: #ffffff;
+  color: var(--primary-dark, #000000);
 }
 
 .tag-pill {

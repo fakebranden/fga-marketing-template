@@ -16,7 +16,11 @@ export default function TermsPage() {
   const frequencyDisclosure =
     brand.a2p?.frequency ?? "Message frequency varies based on Your interactions with Us and active promotions.";
   return (
-    <article className="bg-white">
+    // Ground is the brand SURFACE token, not a hardcoded `bg-white`. See the
+    // matching comment in privacy/page.tsx: with --ink white on a dark-ground
+    // client, the whole Terms body rendered white on white at 1.00:1 on the
+    // live site, carrier-matched SMS sections included. Prose untouched.
+    <article style={{ background: "var(--surface)" }}>
       <ChatWidget />
       <header
         className="border-b"
@@ -275,8 +279,13 @@ function A({ href, children }: { href: string; children: React.ReactNode }) {
   return (
     <a
       href={href}
-      className="underline"
-      style={{ color: "var(--primary)" }}
+      // Same structural fix as the SmsConsent links: `inherit` ties these to
+      // the --ink the page body already uses, so an in-policy link can never
+      // have a contrast the prose around it does not already have. --primary
+      // is a SURFACE token and measured 1.00:1 on dyre-athletics. Underline
+      // plus weight carry the affordance now that colour does not.
+      className="underline underline-offset-2 font-semibold"
+      style={{ color: "inherit" }}
       target={href.startsWith("http") ? "_blank" : undefined}
       rel={href.startsWith("http") ? "noopener noreferrer" : undefined}
     >

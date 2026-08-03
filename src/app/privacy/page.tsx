@@ -13,7 +13,17 @@ export default function PrivacyPage() {
   const helpEmail = brand.a2p?.help_email_override || brand.contact?.email || "";
   const helpPhone = brand.a2p?.help_phone_override || brand.contact?.phone || "";
   return (
-    <article className="bg-white">
+    // Ground is the brand SURFACE token, not a hardcoded `bg-white`. Every
+    // heading, paragraph and list on this page is painted `var(--ink)`, so a
+    // literal white ground only works while --ink is dark. On a dark-ground
+    // brand it inverts: measured 2026-08-03 on dyre-athletics (ink #ffffff),
+    // the ENTIRE body of this page rendered white on white at 1.00:1 live,
+    // policy prose, headings and every <strong> term alike.
+    //
+    // This page's SMS/A2P sections are carrier-matched and reviewed, so an
+    // illegible privacy policy is a compliance exposure, not only WCAG 1.4.3.
+    // The PROSE is untouched; only the ground token changed.
+    <article style={{ background: "var(--surface)" }}>
       <ChatWidget />
       <header
         className="border-b"
@@ -227,7 +237,15 @@ function H4({ children }: { children: React.ReactNode }) {
   return (
     <h4
       className="font-display italic text-base uppercase tracking-[0.06em] pt-3"
-      style={{ color: "var(--primary)" }}
+      // --ink, not --primary (a surface/fill token, which measured 1.00:1 on
+      // dyre-athletics) and not --accent-text either. --accent-text is
+      // SURFACE-DEPENDENT by definition, and this file's :root default for it
+      // (#8A5A06) is a light-ground value: measured 3.55:1 against a #000000
+      // surface, below the AA floor. generate-pages.mjs recomputes accent_text
+      // per client so a GENERATED palette is fine, but this component must not
+      // depend on that having run. H4 is already distinguished from H2/H3 by
+      // being italic, so it does not need colour to carry the distinction.
+      style={{ color: "var(--ink)" }}
     >
       {children}
     </h4>
@@ -264,8 +282,13 @@ function A({ href, children }: { href: string; children: React.ReactNode }) {
   return (
     <a
       href={href}
-      className="underline"
-      style={{ color: "var(--primary)" }}
+      // Same structural fix as the SmsConsent links: `inherit` ties these to
+      // the --ink the page body already uses, so an in-policy link can never
+      // have a contrast the prose around it does not already have. --primary
+      // is a SURFACE token and measured 1.00:1 on dyre-athletics. Underline
+      // plus weight carry the affordance now that colour does not.
+      className="underline underline-offset-2 font-semibold"
+      style={{ color: "inherit" }}
       target={href.startsWith("http") ? "_blank" : undefined}
       rel={href.startsWith("http") ? "noopener noreferrer" : undefined}
     >
