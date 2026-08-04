@@ -1,0 +1,33 @@
+name: PR check
+
+# Runs on every pull request so the A2P compliance gate and the type/build
+# checks are enforced before review — not just on whoever remembered to run
+# `npm run build` locally.
+#
+# `npm run build` is `node scripts/enforce-a2p.mjs && next build`, so this
+# job fails the PR if a phone-collecting input ships without <SmsConsent />,
+# or if <ChatWidget /> lands on a page that collects a phone number.
+
+on:
+  pull_request:
+    branches: [main]
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Typecheck
+        run: npx tsc --noEmit
+
+      - name: A2P gate + build
+        run: npm run build
