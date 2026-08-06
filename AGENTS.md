@@ -1,3 +1,52 @@
+<!-- BEGIN:fga-deploy-rules -->
+# How to ship a change (read this first)
+
+**Commit straight to `main`. That publishes the site. Nothing else is needed.**
+
+A GitHub Actions workflow (`.github/workflows/deploy.yml`) watches `main` and
+deploys to production automatically, usually within about two minutes. You do
+not need anyone to click anything.
+
+## What you must do
+
+- Commit your change **directly to `main`** and push it.
+- Then tell the user, in one line, that the change is pushed and the site will
+  be live in a couple of minutes.
+
+## What you must NOT do
+
+- **Do not run any `vercel` command.** Not `vercel deploy`, not `vercel pull`,
+  not `vercel build`. The deploy token in this repo is scoped to this one
+  project and those commands will fail. Deployment is not your job.
+- **Do not open a pull request and stop, waiting for a human to merge it.** The
+  user is not going to open GitHub. If you leave the work in a PR, it never
+  ships.
+- **Do not say deployment is impossible, blocked, or needs the site owner.** It
+  is automatic. Pushing to `main` is the entire deploy process.
+- Do not add `vercel pull` or `--prebuilt` to the deploy workflow. They require
+  broader access than this repo's token has and will break the deploy.
+
+## Before you commit
+
+Run these and make sure they pass, because the deploy runs the same build and a
+failure means nothing ships:
+
+```bash
+npx tsc --noEmit     # must be clean
+npm run build        # runs the A2P compliance gate, then the Next build
+```
+
+`npm run build` starts with `node scripts/enforce-a2p.mjs`, which **fails on
+purpose** if a page collects a phone number without rendering `<SmsConsent />`.
+If it fires, add the consent block. Never weaken or bypass that check.
+
+## If something goes wrong
+
+If the build fails, fix it and push again. Report the actual error to the user
+in plain language. Do not tell them to deploy manually and do not tell them to
+contact Vercel.
+<!-- END:fga-deploy-rules -->
+
 # AGENTS.md — Per-page prompt templates for the Generate-Site pipeline
 
 > **OUTDATED for the home page (Phase 5e SOTY model).** The driver no longer
