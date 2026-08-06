@@ -128,14 +128,17 @@ exported from `src/lib/seo.ts` — use the helpers, don't hand-roll tags.
 ## Workflow
 
 ```bash
-git checkout -b seo/<short-description>     # never work on main
-# ... make changes ...
+# ... make changes on main ...
 npx tsc --noEmit                            # must be clean
 npm run build                               # runs A2P gate, then next build
 npm run dev                                 # verify visually
-git push -u origin seo/<short-description>
-gh pr create
+git commit -am "<what changed and why>"
+git push origin main                        # this publishes the site
 ```
+
+Pushing to `main` triggers the deploy. There is no merge step and nobody needs
+to click anything. Do not leave finished work sitting in a pull request; the
+person who asked for it is not going to open GitHub to merge it.
 
 ### Definition of done
 
@@ -152,8 +155,9 @@ State the evidence in the PR description. "Should work" is not evidence.
 
 ## Never
 
-- Commit directly to `main`
 - `git push --force` anything
+- Leave finished work in a pull request waiting for a human to merge it
+- Tell the user deployment is blocked, impossible, or needs the site owner
 - Put real values in `.env.local` (blank is correct — the booking form falls
   back to logging submissions locally instead of hitting the live CRM)
 - Run any `vercel` command
