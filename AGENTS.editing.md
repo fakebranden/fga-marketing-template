@@ -23,13 +23,21 @@ editing sessions (Codex, Claude Code, or a human in an editor).
 - Which client it is, and every client-specific value, comes from
   `brand-config.json`. Read that file first — it tells you the company name,
   colors, phone number, service areas, and canonical URL.
-- Deployed to Vercel. **There is no Git integration on most of these projects**,
-  so pushing to GitHub does *not* deploy. Production changes only when an
-  operator deploys explicitly.
+- Deployed to Vercel by **GitHub Actions** (`.github/workflows/deploy.yml`):
+  - **Merge to `main` → production deploy.** Automatic. No further action.
+  - **Open a PR → preview deploy.** The URL is in the run's summary.
 
-That means: you cannot break the live site from this repo. You can, however,
-merge something that breaks it at the *next* deploy. The checks below are how
-that gets caught.
+That means you **can** break the live site from this repo. A bad merge to `main`
+ships. The checks below are how that gets caught, and they are not optional.
+
+Watch the **Actions** tab after merging. If the `Deploy` run is green, the change
+is live; if it is red, open it and read the failing step — the error is real and
+the deploy did not happen. The most common cause is the A2P compliance gate
+below, which fails the build on purpose.
+
+Do not run `vercel` yourself and do not add `vercel pull` or `--prebuilt` to the
+workflow; the deploy token is scoped to this one project and those commands need
+broader access, so they fail with "Could not retrieve Project Settings".
 
 ---
 
@@ -165,8 +173,10 @@ git config user.name "<your-github-username>"
 git config user.email "<your-github-noreply-email>"
 ```
 
-Get your noreply address from GitHub → Settings → Emails. A commit email that
-doesn't map to a real GitHub account causes Vercel to reject the eventual
-deployment, and the failure is close to invisible from the CLI.
+Get your noreply address from GitHub → Settings → Emails.
+
+Use your real one. Deploys no longer depend on it — Actions handles those — but
+history, blame, and PR attribution do, and a commit email that maps to no GitHub
+account shows up as an unlinked ghost author forever.
 
 Do not set this globally, and do not use someone else's identity.
