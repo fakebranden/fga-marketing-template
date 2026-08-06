@@ -1,0 +1,95 @@
+name: Deploy
+
+# WHY THIS EXISTS
+#
+# Vercel refuses to build any Git-integration deployment whose commit author is
+# not a member of the Vercel team. A collaborator who is not on that team would
+# merge to main and watch the site never change - the deployment shows as
+# "Blocked", with no build error to read anywhere. Preview deploys are gated the
+# same way, so they could not even see their own work rendered.
+#
+# Deploys made through the Vercel CLI are attributed to the token rather than to
+# the commit author, and are not subject to that check. So we deploy from Actions
+# using a token scoped to THIS PROJECT ONLY. That token cannot read, deploy, or
+# even list any other project on the team, and it cannot mint a wider token.
+# Anyone with write access to this repo already controls this project's source,
+# so the secret grants them nothing they did not already have.
+#
+# Vercel's own Git auto-deploy is turned off in vercel.json, so this workflow is
+# the single deploy path and the two cannot race on the same merge.
+#
+# DO NOT add `vercel pull` or `vercel build --prebuilt` here. Both require
+# team-level API access that a project-scoped token deliberately does not have,
+# and fail with "Could not retrieve Project Settings". We upload source and let
+# Vercel build remotely, which is better anyway: Vercel injects the project's own
+# environment variables server-side, and the build it runs is still this repo's
+# `npm run build`, so the A2P compliance gate keeps enforcing.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+# Production is serialized and never cancelled mid-flight. Preview builds
+# supersede their own older runs on the same branch.
+concurrency:
+  group: deploy-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  deploy:
+    # Repos that have not been wired yet (the template itself, for example) skip
+    # this entirely rather than failing. `vars` is readable in a job-level if;
+    # `secrets` is not, which is why wiring is detected via the variable.
+    if: vars.VERCEL_PROJECT_ID != ''
+    runs-on: ubuntu-latest
+    env:
+      VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+      VERCEL_ORG_ID: ${{ vars.VERCEL_ORG_ID }}
+      VERCEL_PROJECT_ID: ${{ vars.VERCEL_PROJECT_ID }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check this repo is fully wired
+        run: |
+          test -n "$VERCEL_TOKEN"  || { echo "::error::VERCEL_PROJECT_ID is set but the VERCEL_TOKEN secret is missing. Re-run wire_repo.py for this repo."; exit 1; }
+          test -n "$VERCEL_ORG_ID" || { echo "::error::VERCEL_ORG_ID variable is missing. Re-run wire_repo.py for this repo."; exit 1; }
+
+      - run: npm install --global vercel@latest
+
+      - name: Deploy
+        id: deploy
+        run: |
+          if [ "${{ github.event_name }}" = "push" ]; then
+            PROD=--prod
+            echo "target=production" >> "$GITHUB_OUTPUT"
+          else
+            PROD=
+            echo "target=preview" >> "$GITHUB_OUTPUT"
+          fi
+          # This blocks until the remote build finishes and exits non-zero if it
+          # fails, so this step is the build gate as well as the deploy.
+          URL=$(vercel deploy $PROD --yes --token="$VERCEL_TOKEN")
+          echo "url=$URL" >> "$GITHUB_OUTPUT"
+          echo "Deployed to $URL"
+
+      - name: Check the deployment responds
+        run: |
+          URL='${{ steps.deploy.outputs.url }}'
+          CODE=$(curl -s -o /dev/null -w '%{http_code}' --max-time 30 "$URL" || echo 000)
+          case "$CODE" in
+            200)     echo "$URL -> 200 OK" ;;
+            401|403) echo "::notice::$URL -> $CODE (deployment protection is on; the build itself succeeded)" ;;
+            *)       echo "::error::$URL -> $CODE"; exit 1 ;;
+          esac
+
+      - name: Summary
+        run: |
+          {
+            echo "### Deployed"
+            echo ""
+            echo "- environment: \`${{ steps.deploy.outputs.target }}\`"
+            echo "- url: ${{ steps.deploy.outputs.url }}"
+            echo "- commit author: \`$(git log -1 --pretty='%an')\`"
+          } >> "$GITHUB_STEP_SUMMARY"
