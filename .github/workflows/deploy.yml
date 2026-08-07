@@ -8,9 +8,16 @@ name: Deploy
 # "Blocked", with no build error to read anywhere. Preview deploys are gated the
 # same way, so they could not even see their own work rendered.
 #
-# Deploys made through the Vercel CLI are attributed to the token rather than to
-# the commit author, and are not subject to that check. So we deploy from Actions
-# using a token scoped to THIS PROJECT ONLY. That token cannot read, deploy, or
+# The CLI does NOT bypass that check on its own. It reads the commit author out
+# of the local git context and uploads it, so a collaborator's commit is blocked
+# exactly the same way. Proven 2026-08-06 on kohler-law-group-marketing: two
+# production CLI deploys 32 minutes apart, identical except the author email.
+# `spencer@flyinggoatagency.com`, which maps to no GitHub account, went READY.
+# `313148569+flyinggoatagency@users.noreply.github.com`, which maps to a GitHub
+# user holding no seat on this team, went BLOCKED. What actually bypasses the
+# check is having no resolvable author at all, which the Deploy step below
+# guarantees. So we deploy from Actions using a token scoped to THIS PROJECT
+# ONLY. That token cannot read, deploy, or
 # even list any other project on the team, and it cannot mint a wider token.
 # Anyone with write access to this repo already controls this project's source,
 # so the secret grants them nothing they did not already have.
@@ -68,9 +75,36 @@ jobs:
             PROD=
             echo "target=preview" >> "$GITHUB_OUTPUT"
           fi
-          # This blocks until the remote build finishes and exits non-zero if it
-          # fails, so this step is the build gate as well as the deploy.
-          URL=$(vercel deploy $PROD --yes --token="$VERCEL_TOKEN")
+          # Capture the commit details while git is still present, and carry them
+          # as plain deployment metadata so the dashboard still shows what
+          # shipped. Read via git rather than the event payload so a crafted
+          # commit message cannot be interpolated into this script.
+          SHA=$(git rev-parse --short HEAD)
+          AUTHOR=$(git log -1 --pretty='%an')
+          SUBJECT=$(git log -1 --pretty='%s' | tr -d '"' | cut -c1-120)
+          echo "sha=$SHA"       >> "$GITHUB_OUTPUT"
+          echo "author=$AUTHOR" >> "$GITHUB_OUTPUT"
+
+          # KEEP THIS. It is the entire reason a collaborator can deploy without a
+          # Vercel seat. Vercel blocks any deployment whose commit author email
+          # resolves to a GitHub user with no seat on this team, and it reads that
+          # email from the git context even on a CLI deploy. A blocked deployment
+          # never starts building, so the command below would hang until the job
+          # limit and wedge every later push in this concurrency group behind it.
+          # Discarding the git context leaves no author to resolve, so the check
+          # cannot fire. Verified on fga-marketing-site-e2e-verify with a commit
+          # authored by an account holding no Vercel seat.
+          rm -rf .git
+
+          # Blocks until the remote build finishes and exits non-zero if it fails,
+          # so this step is the build gate as well as the deploy. The timeout is a
+          # backstop: a deploy that cannot progress has to fail loudly instead of
+          # holding the queue for the full six-hour job limit.
+          URL=$(timeout 20m vercel deploy $PROD --yes --token="$VERCEL_TOKEN" \
+                  -m "commitSha=$SHA" \
+                  -m "commitAuthor=$AUTHOR" \
+                  -m "commitMessage=$SUBJECT" \
+                  -m "githubRunId=$GITHUB_RUN_ID")
           echo "url=$URL" >> "$GITHUB_OUTPUT"
           echo "Deployed to $URL"
 
@@ -91,5 +125,5 @@ jobs:
             echo ""
             echo "- environment: \`${{ steps.deploy.outputs.target }}\`"
             echo "- url: ${{ steps.deploy.outputs.url }}"
-            echo "- commit author: \`$(git log -1 --pretty='%an')\`"
+            echo "- commit: \`${{ steps.deploy.outputs.sha }}\` by \`${{ steps.deploy.outputs.author }}\`"
           } >> "$GITHUB_STEP_SUMMARY"
