@@ -29,7 +29,7 @@ jobs:
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
-          node-version: "20"
+          node-version: "24.22.1"  # Node2Shell CVE-2026-111497: 20 is end of life and unpatched
           cache: "npm"
 
       - name: Checkout fga-pro-max-skill (niche reasoning)
